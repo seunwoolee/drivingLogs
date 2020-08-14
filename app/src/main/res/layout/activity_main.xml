@@ -32,11 +32,10 @@
                     android:theme="@style/AppTheme.AppBarOverlay">
 
                     <androidx.appcompat.widget.Toolbar
-                        app:navigationIcon="@drawable/ic_menu"
-                        android:background="@color/blue_900"
                         android:id="@+id/app_bar"
                         android:layout_width="match_parent"
                         android:layout_height="?attr/actionBarSize"
+                        android:background="@color/blue_900"
                         app:title="@string/app_name" />
 
                 </com.google.android.material.appbar.AppBarLayout>
@@ -56,29 +55,87 @@
                         android:orientation="vertical">
 
                         <LinearLayout
+                            android:id="@+id/header_section"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:background="@drawable/btn_purple_a400"
                             android:focusableInTouchMode="true"
                             android:gravity="center"
                             android:orientation="vertical"
                             android:padding="@dimen/spacing_middle"
+
                             android:theme="@style/ThemeOverlay.AppCompat.Dark">
 
-                            <ImageView
-                                android:id="@+id/imageView"
-                                android:layout_width="60dp"
-                                android:layout_height="60dp"
-                                android:tint="@color/colorPrimary"
-                                app:srcCompat="@drawable/logo" />
+                            <ImageButton
+                                android:id="@+id/startBtn"
+                                android:layout_width="200dp"
+                                android:layout_height="200dp"
+                                android:focusableInTouchMode="true"
+                                android:padding="0dp"
+                                android:src="@drawable/my_main_start_button" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <LinearLayout
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:id="@+id/title"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="@dimen/spacing_large"
+                                        android:text="운행시간"
+                                        android:textAppearance="@style/Base.TextAppearance.AppCompat.Headline"
+                                        android:textColor="@color/grey_60" />
+
+                                    <TextView
+                                        android:id="@+id/drivingTime"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="@dimen/spacing_medium"
+                                        android:text="00:00:00"
+                                        android:textAppearance="@style/Base.TextAppearance.AppCompat.Medium"
+                                        android:textColor="@color/grey_40" />
+                                </LinearLayout>
+
+                                <LinearLayout
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:id="@+id/location"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="@dimen/spacing_large"
+                                        android:text="좌표"
+                                        android:textAppearance="@style/Base.TextAppearance.AppCompat.Headline"
+                                        android:textColor="@color/grey_60" />
+
+                                    <TextView
+                                        android:id="@+id/locationText"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="@dimen/spacing_medium"
+                                        android:text="00:00:00"
+                                        android:textAppearance="@style/Base.TextAppearance.AppCompat.Medium"
+                                        android:textColor="@color/grey_40" />
+                                </LinearLayout>
+                            </LinearLayout>
 
                         </LinearLayout>
 
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/main_recycler"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:clipToPadding="false"
-                            android:padding="@dimen/spacing_middle" />
+                        <!-- dummy content list of new -->
+                        <include layout="@layout/include_drawer_content" />
 
                     </LinearLayout>
 
@@ -182,21 +239,9 @@
                 </LinearLayout>
             </com.google.android.material.bottomnavigation.BottomNavigationView>
 
+
         </LinearLayout>
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
-
-
-    <!--navigation drawer menu-->
-    <com.google.android.material.navigation.NavigationView
-        android:id="@+id/nav_view"
-        android:layout_width="220dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:background="@color/grey_95"
-        android:fitsSystemWindows="false"
-        app:headerLayout="@layout/include_drawer_header_main_menu"
-        app:itemIconTint="@color/grey_40"
-        app:itemTextColor="@color/grey_10"
-        app:menu="@menu/menu_activity_main_drawer" />
 
 </androidx.drawerlayout.widget.DrawerLayout>
