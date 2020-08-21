@@ -5,20 +5,11 @@ import java.util.Date;
 import io.realm.RealmObject;
 
 public class MapPoint extends RealmObject {
-    private DrivingLog drivingLog;
     private double latitude;
     private double longitude;
     private Date currentDate;
 
     public MapPoint() {
-    }
-
-    public DrivingLog getDrivingLog() {
-        return drivingLog;
-    }
-
-    public void setDrivingLog(DrivingLog drivingLog) {
-        this.drivingLog = drivingLog;
     }
 
     public double getLatitude() {
@@ -48,7 +39,6 @@ public class MapPoint extends RealmObject {
     @Override
     public String toString() {
         return "MapPoint{" +
-                "drivingLog=" + drivingLog +
                 ", latitude=" + latitude +
                 ", longitude=" + longitude +
                 ", currentDate=" + currentDate +

@@ -79,14 +79,14 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
                 view.stopLocation.setText(drivingLog.getReadableLocation(ctx, false));
             }
 
-//            view.lyt_parent.setOnClickListener(new View.OnClickListener() {
-//                @Override
-//                public void onClick(View view) {
-//                    if (mOnItemClickListener != null) {
-//                        mOnItemClickListener.onItemClick(view, items.get(position), position);
-//                    }
-//                }
-//            });
+            view.lyt_parent.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    if (mOnItemClickListener != null) {
+                        mOnItemClickListener.onItemClick(view, items.get(position), position);
+                    }
+                }
+            });
 
 //            view.more.setOnClickListener(new View.OnClickListener() {
 //                @Override

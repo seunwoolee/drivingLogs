@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import io.realm.RealmList;
 import io.realm.RealmObject;
 
 public class DrivingLog extends RealmObject {
@@ -23,6 +24,7 @@ public class DrivingLog extends RealmObject {
     private double stopLongitude;
     private Date startDate;
     private Date stopDate;
+    private RealmList<MapPoint> mapPoints; // 일 대 다 관계를 정의합니다
 
     public DrivingLog() {
     }
@@ -106,8 +108,15 @@ public class DrivingLog extends RealmObject {
         return result;
     }
 
-
     public long getId() {
         return id;
+    }
+
+    public RealmList<MapPoint> getMapPoints() {
+        return mapPoints;
+    }
+
+    public void setMapPoints(RealmList<MapPoint> mapPoints) {
+        this.mapPoints = mapPoints;
     }
 }
