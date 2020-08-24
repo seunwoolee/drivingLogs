@@ -43,7 +43,7 @@ public class MyService extends Service {
                 if (mPreviousLocation == null) {
                     mPreviousLocation = location;
                 }
-                float distance = location.distanceTo(mPreviousLocation);
+                int distance = Math.round(location.distanceTo(mPreviousLocation));
                 mPreviousLocation = location;
                 Log.d(TAG, String.valueOf(distance));
 
@@ -54,6 +54,7 @@ public class MyService extends Service {
                 intent.putExtra("latitude", latitude);
                 intent.putExtra("longitude", longitude);
                 intent.putExtra("date", date);
+                intent.putExtra("distance", distance);
                 sendBroadcast(intent);
             }
 

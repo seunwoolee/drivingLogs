@@ -48,9 +48,11 @@ import io.realm.RealmList;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MAIN";
     private int mSeconds = 0;
+    private int mMeters = 0;
     private boolean isStarted = true;
 
     private TextView mDrivingTime;
+    private TextView mDrivingDistance;
     private RecyclerView mRecyclerView;
 
     private Realm mRealm;
@@ -76,6 +78,12 @@ public class MainActivity extends AppCompatActivity {
                     mapPoint.setLongitude((Double) intent.getExtras().get("longitude"));
                     mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
                     mMapPoints.add(mapPoint);
+
+                    int distance = (int) intent.getExtras().get("distance");
+                    mMeters += distance;
+
+                    Log.d(TAG, String.valueOf(mMeters));
+                    mDrivingDistance.setText(String.format("%d.%ckm", (mMeters / 1000), String.valueOf(mMeters % 1000).charAt(0)));
                 }
             };
         }
@@ -104,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
 
         ImageButton startBtn = findViewById(R.id.startBtn);
         mDrivingTime = findViewById(R.id.drivingTime);
+        mDrivingDistance = findViewById(R.id.drivingDistance);
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         mGeocoder = new Geocoder(this);
         mHandler = new Handler() {
@@ -190,7 +199,9 @@ public class MainActivity extends AppCompatActivity {
                     mStartTimerThread = null;
 
                     mSeconds = 0;
+                    mMeters = 0;
                     mDrivingTime.setText("00:00:00");
+                    mDrivingDistance.setText("0.0km");
                     mRealm.executeTransaction(new Realm.Transaction() {
                         @Override
                         public void execute(Realm realm) {

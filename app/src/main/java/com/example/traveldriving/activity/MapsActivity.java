@@ -84,7 +84,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         mMap.moveCamera(CameraUpdateFactory.newLatLng(startLatLng));
-
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(13.5f), 1000, null);
 //        LatLng startLocation = new LatLng(mStartLatitude, mStartLongitude);
 //        LatLng stopLocation = new LatLng(mStopLatitude, mStopLongitude);
 //        mMap.addMarker(new MarkerOptions().position(startLocation).title("시작위치"));
