@@ -30,11 +30,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
 
     private RealmList<MapPoint> mMapPoints;
-
-    private double mStartLatitude;
-    private double mStartLongitude;
-    private double mStopLatitude;
-    private double mStopLongitude;
+    private DrivingLog mDrivingLog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,15 +41,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         Realm.init(this);
         Realm realm = Realm.getDefaultInstance();
-        DrivingLog drivingLog = realm.where(DrivingLog.class).equalTo("id", drivingLogId).findFirst();
-        Log.d(TAG, String.valueOf(drivingLog.getMapPoints().size())) ;
-        mMapPoints = drivingLog.getMapPoints();
+        mDrivingLog = realm.where(DrivingLog.class).equalTo("id", drivingLogId).findFirst();
+        Log.d(TAG, String.valueOf(mDrivingLog.getMapPoints().size())) ;
+        mMapPoints = mDrivingLog.getMapPoints();
 
-
-//        mStartLatitude = intent.getDoubleExtra("startLatitude", 0);
-//        mStartLongitude = intent.getDoubleExtra("startLongitude", 0);
-//        mStopLatitude = intent.getDoubleExtra("stopLatitude", 0);
-//        mStopLongitude = intent.getDoubleExtra("stopLongitude", 0);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -75,7 +66,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap = googleMap;
 
         // Add a marker in Sydney and move the camera
-        LatLng startLatLng = new LatLng(mMapPoints.get(0).getLatitude(), mMapPoints.get(0).getLongitude());
+        LatLng startLatLng = new LatLng(mDrivingLog.getStartLatitude(), mDrivingLog.getStartLongitude());
+        mMap.addMarker(new MarkerOptions().position(startLatLng).title("시작"));
 
         for (int i = 0; i < mMapPoints.size(); i++) {
             MapPoint mapPoint = mMapPoints.get(i);
@@ -85,10 +77,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mMap.moveCamera(CameraUpdateFactory.newLatLng(startLatLng));
         mMap.animateCamera(CameraUpdateFactory.zoomTo(13.5f), 1000, null);
-//        LatLng startLocation = new LatLng(mStartLatitude, mStartLongitude);
-//        LatLng stopLocation = new LatLng(mStopLatitude, mStopLongitude);
-//        mMap.addMarker(new MarkerOptions().position(startLocation).title("시작위치"));
-//        mMap.addMarker(new MarkerOptions().position(stopLocation).title("종료위치"));
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(startLocation));
+
+
+        // Add a marker in Sydney and move the camera
+        LatLng stopLatLng = new LatLng(mDrivingLog.getStopLatitude(), mDrivingLog.getStopLongitude());
+        mMap.addMarker(new MarkerOptions().position(stopLatLng).title("종료"));
     }
 }
