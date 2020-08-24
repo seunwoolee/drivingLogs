@@ -8,6 +8,7 @@ import android.widget.Toast;
 import com.example.traveldriving.activity.MainActivity;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.List;
 import io.realm.RealmList;
 import io.realm.RealmObject;
 
-public class DrivingLog extends RealmObject {
+public class DrivingLog extends RealmObject implements Serializable {
     private long id;
 
     private double startLatitude;

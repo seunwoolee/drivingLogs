@@ -8,8 +8,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -32,20 +34,15 @@ import com.example.traveldriving.R;
 import com.example.traveldriving.adapter.AdapterListDrivingLog;
 import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
-import com.google.android.material.snackbar.Snackbar;
+import com.example.traveldriving.service.MyService;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.nio.MappedByteBuffer;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import io.realm.Realm;
-import io.realm.RealmChangeListener;
 import io.realm.RealmList;
-import io.realm.RealmResults;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -62,9 +59,28 @@ public class MainActivity extends AppCompatActivity {
     private LocationManager mLocationManager;
     private AdapterListDrivingLog mAdapter;
     private static Handler mHandler;
+    private BroadcastReceiver broadcastReceiver;
 
     private DrivingLog mDrivingLog;
     private List<MapPoint> mMapPoints;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (broadcastReceiver == null) {
+            broadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    MapPoint mapPoint = new MapPoint();
+                    mapPoint.setLatitude((Double) intent.getExtras().get("latitude"));
+                    mapPoint.setLongitude((Double) intent.getExtras().get("longitude"));
+                    mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
+                    mMapPoints.add(mapPoint);
+                }
+            };
+        }
+        registerReceiver(broadcastReceiver, new IntentFilter("location_update"));
+    }
 
     @Override
     protected void onDestroy() {
@@ -110,6 +126,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (isStarted) {
+                    Intent intent = new Intent(getApplicationContext(), MyService.class);
+                    startService(intent);
                     Context context = getApplicationContext();
                     if (ActivityCompat.checkSelfPermission(context, permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                             && ActivityCompat.checkSelfPermission(context, permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -125,10 +143,7 @@ public class MainActivity extends AppCompatActivity {
 
                     }
 
-                    mLocationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 0, 0, mLocationListener);
                     Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                    assert lastKnownLocation != null;
-
                     mDrivingLog = new DrivingLog();
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
@@ -164,11 +179,13 @@ public class MainActivity extends AppCompatActivity {
                     mStartTimerThread = new TimerThread();
                     mStartTimerThread.start();
                 } else {
-                    mLocationManager.removeUpdates(mLocationListener);
+                    Intent intent = new Intent(getApplicationContext(), MyService.class);
+                    stopService(intent);
                     startBtn.setImageResource(R.drawable.btn_start);
                     mStartTimerThread.setStop(false);
                     mStartTimerThread.interrupt();
                     mStartTimerThread = null;
+
                     mSeconds = 0;
                     mDrivingTime.setText("00:00:00");
                     mRealm.executeTransaction(new Realm.Transaction() {
@@ -188,22 +205,17 @@ public class MainActivity extends AppCompatActivity {
                                 }
 
                             }
-
                             Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
                             assert lastKnownLocation != null;
 
                             double latitude = lastKnownLocation.getLatitude();
                             double longitude = lastKnownLocation.getLongitude();
                             Date date = new Date(lastKnownLocation.getTime());
-                            DrivingLog newDrivingLog = mRealm.createObject(DrivingLog.class);
-                            newDrivingLog.setId(mDrivingLog.getId());
-                            newDrivingLog.setStartLatitude(mDrivingLog.getStartLatitude());
-                            newDrivingLog.setStartLongitude(mDrivingLog.getStartLongitude());
-                            newDrivingLog.setStartDate(mDrivingLog.getStartDate());
-                            newDrivingLog.setStopLatitude(latitude);
-                            newDrivingLog.setStopLongitude(longitude);
-                            newDrivingLog.setStopDate(date);
-                            mDrivingLog = null;
+                            mDrivingLog.setStopLatitude(latitude);
+                            mDrivingLog.setStopLongitude(longitude);
+                            mDrivingLog.setStopDate(date);
+
+                            DrivingLog newDrivingLog = realm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
 
                             RealmList<MapPoint> newMapPoints = new RealmList<>();
                             for (int i = 0; i < mMapPoints.size(); i++) {
@@ -215,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                             newDrivingLog.setMapPoints(newMapPoints);
-                            mMapPoints = null;
+                            mMapPoints = new ArrayList<MapPoint>();
                             newMapPoints = null;
                         }
                     });
@@ -243,57 +255,23 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemClick(View view, DrivingLog obj, int pos) {
                 DrivingLog drivingLog = items.get(pos);
-//                List<MapPoint> mapPoints = mRealm.where(MapPoint.class).("drivingLog", drivingLog);
-                Log.d(TAG, String.valueOf(items.get(pos)));
 
                 Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-                intent.putExtra("startLatitude", drivingLog.getStartLatitude());
-                intent.putExtra("startLongitude", drivingLog.getStartLongitude());
-                intent.putExtra("stopLatitude", drivingLog.getStopLatitude());
-                intent.putExtra("stopLongitude", drivingLog.getStopLongitude());
-//                intent.putExtra("mapPoints", (List<MapPoint>) drivingLog.getMapPoints());
+//                Bundle bundle = new Bundle();
+//                bundle.putSerializable("drivingLog", drivingLog);
+                intent.putExtra("drivingLogId", drivingLog.getId());
+
                 startActivity(intent);
+
+//                intent.putExtra("startLatitude", drivingLog.getStartLatitude());
+//                intent.putExtra("startLongitude", drivingLog.getStartLongitude());
+//                intent.putExtra("stopLatitude", drivingLog.getStopLatitude());
+//                intent.putExtra("stopLongitude", drivingLog.getStopLongitude());
             }
 
         });
-
-
-//        mAdapter.setOnMoreButtonClickListener(new AdapterListMusicSong.OnMoreButtonClickListener() {
-//            @Override
-//            public void onItemClick(View view, MusicSong obj, MenuItem item) {
-//                Snackbar.make(parent_view, obj.title + " (" + item.getTitle() + ") clicked", Snackbar.LENGTH_SHORT).show();
-//            }
-//        });
     }
 
-    LocationListener mLocationListener = new LocationListener() {
-
-        @Override
-        public void onLocationChanged(Location location) {
-            MapPoint mapPoint = new MapPoint();
-            double latitude = location.getLatitude();
-            double longitude = location.getLongitude();
-            Date date = new Date(location.getTime());
-            mapPoint.setLatitude(latitude);
-            mapPoint.setLongitude(longitude);
-            mapPoint.setCurrentDate(date);
-            mMapPoints.add(mapPoint);
-
-
-        }
-
-        @Override
-        public void onStatusChanged(String provider, int status, Bundle extras) {
-        }
-
-        @Override
-        public void onProviderEnabled(String provider) {
-        }
-
-        @Override
-        public void onProviderDisabled(String provider) {
-        }
-    };
 
     class TimerThread extends Thread {
 
