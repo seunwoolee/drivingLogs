@@ -181,6 +181,9 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     Intent intent = new Intent(getApplicationContext(), MyService.class);
                     stopService(intent);
+                    Context context = getApplicationContext();
+                    Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
+
                     startBtn.setImageResource(R.drawable.btn_start);
                     mStartTimerThread.setStop(false);
                     mStartTimerThread.interrupt();
@@ -206,8 +209,6 @@ public class MainActivity extends AppCompatActivity {
 
                             }
                             Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                            assert lastKnownLocation != null;
-
                             double latitude = lastKnownLocation.getLatitude();
                             double longitude = lastKnownLocation.getLongitude();
                             Date date = new Date(lastKnownLocation.getTime());
@@ -255,18 +256,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemClick(View view, DrivingLog obj, int pos) {
                 DrivingLog drivingLog = items.get(pos);
-
                 Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-//                Bundle bundle = new Bundle();
-//                bundle.putSerializable("drivingLog", drivingLog);
                 intent.putExtra("drivingLogId", drivingLog.getId());
-
                 startActivity(intent);
-
-//                intent.putExtra("startLatitude", drivingLog.getStartLatitude());
-//                intent.putExtra("startLongitude", drivingLog.getStartLongitude());
-//                intent.putExtra("stopLatitude", drivingLog.getStopLatitude());
-//                intent.putExtra("stopLongitude", drivingLog.getStopLongitude());
             }
 
         });

@@ -23,6 +23,7 @@ public class MyService extends Service {
     private static final String TAG = "MyService";
     private LocationListener mLocationListener;
     private LocationManager mLocationManager;
+    private Location mPreviousLocation;
 
     public MyService() {
     }
@@ -39,6 +40,13 @@ public class MyService extends Service {
         mLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
+                if (mPreviousLocation == null) {
+                    mPreviousLocation = location;
+                }
+                float distance = location.distanceTo(mPreviousLocation);
+                mPreviousLocation = location;
+                Log.d(TAG, String.valueOf(distance));
+
                 double latitude = location.getLatitude();
                 double longitude = location.getLongitude();
                 Date date = new Date(location.getTime());
@@ -83,7 +91,7 @@ public class MyService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if(mLocationManager != null){
+        if (mLocationManager != null) {
             mLocationManager.removeUpdates(mLocationListener);
         }
     }
