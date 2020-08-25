@@ -2,6 +2,7 @@ package com.example.traveldriving.activity;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.view.ActionMode;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -24,8 +25,11 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Parcelable;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -35,6 +39,8 @@ import com.example.traveldriving.adapter.AdapterListDrivingLog;
 import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
 import com.example.traveldriving.service.MyService;
+import com.example.traveldriving.utils.Tools;
+import com.example.traveldriving.widget.LineItemDecoration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,6 +68,8 @@ public class MainActivity extends AppCompatActivity {
     private AdapterListDrivingLog mAdapter;
     private static Handler mHandler;
     private BroadcastReceiver broadcastReceiver;
+    private ActionModeCallback mActionModeCallback;
+    private ActionMode mActionMode;
 
     private DrivingLog mDrivingLog;
     private List<MapPoint> mMapPoints;
@@ -152,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
 
                     }
 
-                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
                     mDrivingLog = new DrivingLog();
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
@@ -219,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
                                 }
 
                             }
-                            Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                            Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
                             double latitude = lastKnownLocation.getLatitude();
                             double longitude = lastKnownLocation.getLongitude();
                             Date date = new Date(lastKnownLocation.getTime());
@@ -254,27 +262,60 @@ public class MainActivity extends AppCompatActivity {
     private void initComponent() {
         mRecyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        mRecyclerView.addItemDecoration(new LineItemDecoration(this, LinearLayout.VERTICAL));
         mRecyclerView.setHasFixedSize(true);
 
         List<DrivingLog> items = mRealm.where(DrivingLog.class).findAll();
 
-        //set data and list adapter
         mAdapter = new AdapterListDrivingLog(this, items);
         mRecyclerView.setAdapter(mAdapter);
 
-        // on item list clicked
         mAdapter.setOnItemClickListener(new AdapterListDrivingLog.OnItemClickListener() {
             @Override
             public void onItemClick(View view, DrivingLog obj, int pos) {
-                DrivingLog drivingLog = items.get(pos);
-                Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-                intent.putExtra("drivingLogId", drivingLog.getId());
-                startActivity(intent);
+                if (mAdapter.getSelectedItemCount() > 0) {
+                    enableActionMode(pos);
+                } else {
+                    DrivingLog drivingLog = items.get(pos);
+                    Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+                    intent.putExtra("drivingLogId", drivingLog.getId());
+                    startActivity(intent);
+                }
+
+            }
+        });
+
+        mAdapter.setOnMoreButtonClickListener(new AdapterListDrivingLog.OnMoreButtonClickListener() {
+            @Override
+            public void onItemClick(View view, DrivingLog obj, int pos) {
+                enableActionMode(pos);
             }
 
         });
+
+        mActionModeCallback = new ActionModeCallback();
+
     }
 
+    private void enableActionMode(int position) {
+        if (mActionMode == null) {
+            mActionMode = startSupportActionMode(mActionModeCallback);
+
+        }
+        toggleSelection(position);
+    }
+
+    private void toggleSelection(int position) {
+        mAdapter.toggleSelection(position);
+        int count = mAdapter.getSelectedItemCount();
+
+        if (count == 0) {
+            mActionMode.finish();
+        } else {
+            mActionMode.setTitle(String.valueOf(count));
+            mActionMode.invalidate();
+        }
+    }
 
     class TimerThread extends Thread {
 
@@ -298,5 +339,44 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class ActionModeCallback implements ActionMode.Callback {
+        @Override
+        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            Tools.setSystemBarColor(MainActivity.this, R.color.blue_grey_700);
+            mode.getMenuInflater().inflate(R.menu.menu_delete, menu);
+            return true;
+        }
+
+        @Override
+        public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+            return false;
+        }
+
+        @Override
+        public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+            int id = item.getItemId();
+            if (id == R.id.action_delete) {
+                deleteInboxes();
+                mode.finish();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void onDestroyActionMode(ActionMode mode) {
+            mAdapter.clearSelections();
+            mActionMode = null;
+            Tools.setSystemBarColor(MainActivity.this, R.color.colorPrimary);
+        }
+    }
+
+    private void deleteInboxes() {
+        List<Integer> selectedItemPositions = mAdapter.getSelectedItems();
+        for (int i = selectedItemPositions.size() - 1; i >= 0; i--) {
+            mAdapter.removeData(selectedItemPositions.get(i));
+        }
+        mAdapter.notifyDataSetChanged();
+    }
 
 }

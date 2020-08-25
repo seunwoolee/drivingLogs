@@ -1,17 +1,15 @@
 package com.example.traveldriving.adapter;
 
 import android.content.Context;
+import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
-import android.widget.ImageView;
+import android.widget.CheckBox;
 import android.widget.TextView;
 
-import androidx.appcompat.widget.PopupMenu;
 import androidx.recyclerview.widget.RecyclerView;
-
 
 import com.example.traveldriving.R;
 import com.example.traveldriving.model.DrivingLog;
@@ -22,8 +20,9 @@ import java.util.List;
 public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private List<DrivingLog> items = new ArrayList<>();
-
     private Context ctx;
+    private SparseBooleanArray selected_items;
+    private int current_selected_idx = -1;
     private OnItemClickListener mOnItemClickListener;
     private OnMoreButtonClickListener onMoreButtonClickListener;
 
@@ -38,6 +37,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
     public AdapterListDrivingLog(Context context, List<DrivingLog> items) {
         this.items = items;
         ctx = context;
+        selected_items = new SparseBooleanArray();
     }
 
     public class OriginalViewHolder extends RecyclerView.ViewHolder {
@@ -46,6 +46,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
         public TextView startTime;
         public TextView startLocation;
         public View lyt_parent;
+        public CheckBox checkBox;
 
         public OriginalViewHolder(View v) {
             super(v);
@@ -54,6 +55,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
             stopTime = (TextView) v.findViewById(R.id.stopTime);
             stopLocation = (TextView) v.findViewById(R.id.stopLocation);
             lyt_parent = (View) v.findViewById(R.id.lyt_parent);
+            checkBox = (CheckBox) v.findViewById(R.id.selected_checkbox);
         }
     }
 
@@ -72,12 +74,13 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
             OriginalViewHolder view = (OriginalViewHolder) holder;
 
             final DrivingLog drivingLog = items.get(position);
-            if(drivingLog.getStartDate() != null) {
-                view.startTime.setText(drivingLog.getStartDate().toString());
-                view.startLocation.setText(drivingLog.getReadableLocation(ctx, true));
-                view.stopTime.setText(drivingLog.getStopDate().toString());
-                view.stopLocation.setText(drivingLog.getReadableLocation(ctx, false));
-            }
+            view.startTime.setText(drivingLog.getStartDate().toString());
+            view.startLocation.setText(drivingLog.getReadableLocation(ctx, true));
+            view.stopTime.setText(drivingLog.getStopDate().toString());
+            view.stopLocation.setText(drivingLog.getReadableLocation(ctx, false));
+            view.lyt_parent.setActivated(selected_items.get(position, false));
+
+
 
             view.lyt_parent.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -88,28 +91,16 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
                 }
             });
 
-//            view.more.setOnClickListener(new View.OnClickListener() {
-//                @Override
-//                public void onClick(View view) {
-//                    if (onMoreButtonClickListener == null) return;
-//                    onMoreButtonClick(view, p);
-//                }
-//            });
+            view.lyt_parent.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    if (onMoreButtonClickListener == null) return false;
+                    onMoreButtonClickListener.onItemClick(v, drivingLog, position);
+                    return true;
+                }
+            });
         }
     }
-
-//    private void onMoreButtonClick(final View view, final DrivingLog p) {
-//        PopupMenu popupMenu = new PopupMenu(ctx, view);
-//        popupMenu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-//            @Override
-//            public boolean onMenuItemClick(MenuItem item) {
-//                onMoreButtonClickListener.onItemClick(view, p, item);
-//                return true;
-//            }
-//        });
-//        popupMenu.inflate(R.menu.menu_song_more);
-//        popupMenu.show();
-//    }
 
     @Override
     public int getItemCount() {
@@ -121,7 +112,48 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
     }
 
     public interface OnMoreButtonClickListener {
-        void onItemClick(View view, DrivingLog obj, MenuItem item);
+        //                void onItemClick(View view, DrivingLog obj, MenuItem item);
+        void onItemClick(View view, DrivingLog obj, int pos);
+    }
+
+    private void resetCurrentIndex() {
+        current_selected_idx = -1;
+    }
+
+    public void removeData(int position) {
+        items.remove(position);
+        resetCurrentIndex();
+    }
+
+    public void toggleSelection(int pos) {
+        current_selected_idx = pos;
+        if (selected_items.get(pos, false)) {
+            selected_items.delete(pos);
+        } else {
+            selected_items.put(pos, true);
+        }
+        notifyItemChanged(pos);
+    }
+
+    public void clearSelections() {
+        selected_items.clear();
+        notifyDataSetChanged();
+    }
+
+    public int getSelectedItemCount() {
+        return selected_items.size();
+    }
+
+    public List<Integer> getSelectedItems() {
+        List<Integer> items = new ArrayList<>(selected_items.size());
+        for (int i = 0; i < selected_items.size(); i++) {
+            items.add(selected_items.keyAt(i));
+        }
+        return items;
+    }
+
+    public DrivingLog getItem(int position) {
+        return items.get(position);
     }
 
 }
