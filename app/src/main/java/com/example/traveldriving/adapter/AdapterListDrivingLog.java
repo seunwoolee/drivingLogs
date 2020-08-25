@@ -1,5 +1,6 @@
 package com.example.traveldriving.adapter;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
@@ -16,6 +17,8 @@ import com.example.traveldriving.model.DrivingLog;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import io.realm.Realm;
 
 public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -68,6 +71,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
     }
 
     // Replace the contents of a view (invoked by the layout manager)
+    @SuppressLint("ResourceAsColor")
     @Override
     public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
         if (holder instanceof OriginalViewHolder) {
@@ -79,8 +83,11 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
             view.stopTime.setText(drivingLog.getStopDate().toString());
             view.stopLocation.setText(drivingLog.getReadableLocation(ctx, false));
             view.lyt_parent.setActivated(selected_items.get(position, false));
+            if(selected_items.get(position, false)){
+                view.lyt_parent.setBackgroundColor(R.color.overlay_dark_20);
+            }
 
-
+        //            view.checkBox.setVisibility(View.VISIBLE);
 
             view.lyt_parent.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -121,7 +128,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
     }
 
     public void removeData(int position) {
-        items.remove(position);
+        items.get(0).deleteFromRealm();
         resetCurrentIndex();
     }
 
@@ -155,5 +162,7 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
     public DrivingLog getItem(int position) {
         return items.get(position);
     }
+
+    public List<DrivingLog> getItems() {return items;}
 
 }

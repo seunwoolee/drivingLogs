@@ -373,8 +373,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void deleteInboxes() {
         List<Integer> selectedItemPositions = mAdapter.getSelectedItems();
+        List<DrivingLog> drivingLogs  = mAdapter.getItems();
+
         for (int i = selectedItemPositions.size() - 1; i >= 0; i--) {
-            mAdapter.removeData(selectedItemPositions.get(i));
+            int selectedPos = selectedItemPositions.get(i);
+            mRealm.beginTransaction();
+            drivingLogs.get(selectedPos).deleteFromRealm();
+            mRealm.commitTransaction();
+//            mAdapter.removeData(selectedItemPositions.get(i));
         }
         mAdapter.notifyDataSetChanged();
     }
