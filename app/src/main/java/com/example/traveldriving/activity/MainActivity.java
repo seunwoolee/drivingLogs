@@ -50,7 +50,7 @@ import io.realm.RealmList;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MAIN";
-//    private int mMeters = 0;
+    //    private int mMeters = 0;
     private boolean isStarted = true;
 
     private TextView mDrivingTime;
@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
 
     private Realm mRealm;
     private Geocoder mGeocoder;
-//    private TimerThread mStartTimerThread;
+    //    private TimerThread mStartTimerThread;
     private LocationManager mLocationManager;
     private AdapterListDrivingLog mAdapter;
     private static Handler mHandler;
@@ -97,9 +97,6 @@ public class MainActivity extends AppCompatActivity {
                     int minute = (int) intent.getExtras().get("minute");
                     int second = (int) intent.getExtras().get("second");
                     String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
-//                    mDrivingTime.setText("00:00:00");
-//                    mDrivingDistance.setText("0.0km");
-
                     mDrivingTime.setText(time);
                 }
             };
@@ -193,8 +190,10 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     Intent intent = new Intent(getApplicationContext(), MyService.class);
                     stopService(intent);
-                    Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
 
+                    Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
+                    mDrivingTime.setText("00:00:00");
+                    mDrivingDistance.setText("0.0km");
                     startBtn.setImageResource(R.drawable.btn_start);
                     mRealm.beginTransaction();
                     Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
@@ -239,6 +238,13 @@ public class MainActivity extends AppCompatActivity {
         mAdapter = new AdapterListDrivingLog(this, items);
         mRecyclerView.setAdapter(mAdapter);
 
+        mAdapter.setOnCheckBoxClickListener(new AdapterListDrivingLog.OnCheckboxClickListener() {
+            @Override
+            public void onItemClick(int pos) {
+                toggleSelection(pos);
+            }
+        });
+
         mAdapter.setOnItemClickListener(new AdapterListDrivingLog.OnItemClickListener() {
             @Override
             public void onItemClick(View view, DrivingLog obj, int pos) {
@@ -281,36 +287,15 @@ public class MainActivity extends AppCompatActivity {
         if (count == 0) {
             mActionMode.finish();
         } else {
-            mActionMode.setTitle(String.valueOf(count));
             mActionMode.invalidate();
         }
     }
 
-//    class TimerThread extends Thread {
-//
-//        private boolean stop = true;
-//
-//        public void setStop(boolean stop) {
-//            this.stop = stop;
-//        }
-//
-//        @Override
-//        public void run() {
-//            while (stop) {
-//                try {
-//                    Thread.sleep(1000);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                    break;
-//                }
-//                mHandler.sendEmptyMessage(0);
-//            }
-//        }
-//    }
-
     private class ActionModeCallback implements ActionMode.Callback {
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            mAdapter.setActionMode(true);
+            mAdapter.notifyDataSetChanged();
             Tools.setSystemBarColor(MainActivity.this, R.color.blue_grey_700);
             mode.getMenuInflater().inflate(R.menu.menu_delete, menu);
             return true;
@@ -336,20 +321,22 @@ public class MainActivity extends AppCompatActivity {
         public void onDestroyActionMode(ActionMode mode) {
             mAdapter.clearSelections();
             mActionMode = null;
+            mAdapter.setActionMode(false);
+            mAdapter.notifyDataSetChanged();
             Tools.setSystemBarColor(MainActivity.this, R.color.colorPrimary);
         }
     }
 
     private void deleteInboxes() {
         List<Integer> selectedItemPositions = mAdapter.getSelectedItems();
-        List<DrivingLog> drivingLogs  = mAdapter.getItems();
+        List<DrivingLog> drivingLogs = mAdapter.getItems();
 
         for (int i = selectedItemPositions.size() - 1; i >= 0; i--) {
             int selectedPos = selectedItemPositions.get(i);
             mRealm.beginTransaction();
             drivingLogs.get(selectedPos).deleteFromRealm();
             mRealm.commitTransaction();
-//            mAdapter.removeData(selectedItemPositions.get(i));
+            mAdapter.resetCurrentIndex();
         }
         mAdapter.notifyDataSetChanged();
     }

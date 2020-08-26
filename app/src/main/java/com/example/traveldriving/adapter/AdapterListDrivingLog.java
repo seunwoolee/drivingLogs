@@ -2,6 +2,7 @@ package com.example.traveldriving.adapter;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -22,12 +23,20 @@ import io.realm.Realm;
 
 public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
+    private static final String TAG = "AdapterListDrivingLog";
     private List<DrivingLog> items = new ArrayList<>();
     private Context ctx;
     private SparseBooleanArray selected_items;
     private int current_selected_idx = -1;
+    private boolean isActionMode = false;
     private OnItemClickListener mOnItemClickListener;
+    private OnCheckboxClickListener mOnCheckboxClickListener;
     private OnMoreButtonClickListener onMoreButtonClickListener;
+
+    public void setOnCheckBoxClickListener(final OnCheckboxClickListener onCheckBoxClickListener) {
+        this.mOnCheckboxClickListener = onCheckBoxClickListener;
+    }
+
 
     public void setOnItemClickListener(final OnItemClickListener mItemClickListener) {
         this.mOnItemClickListener = mItemClickListener;
@@ -41,6 +50,14 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
         this.items = items;
         ctx = context;
         selected_items = new SparseBooleanArray();
+    }
+
+    public boolean isActionMode() {
+        return isActionMode;
+    }
+
+    public void setActionMode(boolean actionMode) {
+        isActionMode = actionMode;
     }
 
     public class OriginalViewHolder extends RecyclerView.ViewHolder {
@@ -82,12 +99,22 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
             view.startLocation.setText(drivingLog.getReadableLocation(ctx, true));
             view.stopTime.setText(drivingLog.getStopDate().toString());
             view.stopLocation.setText(drivingLog.getReadableLocation(ctx, false));
-            view.lyt_parent.setActivated(selected_items.get(position, false));
-            if(selected_items.get(position, false)){
-                view.lyt_parent.setBackgroundColor(R.color.overlay_dark_20);
+            view.checkBox.setChecked(selected_items.get(position, false));
+
+            if (isActionMode) {
+                view.checkBox.setVisibility(View.VISIBLE);
+            } else {
+                view.checkBox.setVisibility(View.GONE);
             }
 
-        //            view.checkBox.setVisibility(View.VISIBLE);
+            view.checkBox.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if(mOnCheckboxClickListener != null){
+                        mOnCheckboxClickListener.onItemClick(position);
+                    }
+                }
+            });
 
             view.lyt_parent.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -114,6 +141,10 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
         return items.size();
     }
 
+    public interface OnCheckboxClickListener {
+        void onItemClick(int pos);
+    }
+
     public interface OnItemClickListener {
         void onItemClick(View view, DrivingLog obj, int pos);
     }
@@ -123,13 +154,8 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
         void onItemClick(View view, DrivingLog obj, int pos);
     }
 
-    private void resetCurrentIndex() {
+    public void resetCurrentIndex() {
         current_selected_idx = -1;
-    }
-
-    public void removeData(int position) {
-        items.get(0).deleteFromRealm();
-        resetCurrentIndex();
     }
 
     public void toggleSelection(int pos) {
@@ -163,6 +189,8 @@ public class AdapterListDrivingLog extends RecyclerView.Adapter<RecyclerView.Vie
         return items.get(position);
     }
 
-    public List<DrivingLog> getItems() {return items;}
+    public List<DrivingLog> getItems() {
+        return items;
+    }
 
 }
