@@ -17,20 +17,17 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
-import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.os.Parcelable;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -53,8 +50,7 @@ import io.realm.RealmList;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MAIN";
-    private int mSeconds = 0;
-    private int mMeters = 0;
+//    private int mMeters = 0;
     private boolean isStarted = true;
 
     private TextView mDrivingTime;
@@ -63,11 +59,12 @@ public class MainActivity extends AppCompatActivity {
 
     private Realm mRealm;
     private Geocoder mGeocoder;
-    private TimerThread mStartTimerThread;
+//    private TimerThread mStartTimerThread;
     private LocationManager mLocationManager;
     private AdapterListDrivingLog mAdapter;
     private static Handler mHandler;
-    private BroadcastReceiver broadcastReceiver;
+    private BroadcastReceiver mapChangedBroadcastReceiver;
+    private BroadcastReceiver timerBroadcastReceiver;
     private ActionModeCallback mActionModeCallback;
     private ActionMode mActionMode;
 
@@ -77,8 +74,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (broadcastReceiver == null) {
-            broadcastReceiver = new BroadcastReceiver() {
+        if (mapChangedBroadcastReceiver == null) {
+            mapChangedBroadcastReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     MapPoint mapPoint = new MapPoint();
@@ -87,15 +84,29 @@ public class MainActivity extends AppCompatActivity {
                     mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
                     mMapPoints.add(mapPoint);
 
-                    int distance = (int) intent.getExtras().get("distance");
-                    mMeters += distance;
-
-                    Log.d(TAG, String.valueOf(mMeters));
-                    mDrivingDistance.setText(String.format("%d.%ckm", (mMeters / 1000), String.valueOf(mMeters % 1000).charAt(0)));
+                    int meter = (int) intent.getExtras().get("meter");
+                    mDrivingDistance.setText(String.format("%d.%ckm", (meter / 1000), String.valueOf(meter % 1000).charAt(0)));
                 }
             };
         }
-        registerReceiver(broadcastReceiver, new IntentFilter("location_update"));
+        if (timerBroadcastReceiver == null) {
+            timerBroadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    int hour = (int) intent.getExtras().get("hour");
+                    int minute = (int) intent.getExtras().get("minute");
+                    int second = (int) intent.getExtras().get("second");
+                    String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
+//                    mDrivingTime.setText("00:00:00");
+//                    mDrivingDistance.setText("0.0km");
+
+                    mDrivingTime.setText(time);
+                }
+            };
+        }
+
+        registerReceiver(mapChangedBroadcastReceiver, new IntentFilter("location_update"));
+        registerReceiver(timerBroadcastReceiver, new IntentFilter("timer_update"));
     }
 
     @Override
@@ -123,21 +134,6 @@ public class MainActivity extends AppCompatActivity {
         mDrivingDistance = findViewById(R.id.drivingDistance);
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         mGeocoder = new Geocoder(this);
-        mHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                mSeconds++;
-                int mTempSecond = mSeconds;
-                int hour = mTempSecond / 3600;
-                mTempSecond -= hour * 3600;
-                int minute = mTempSecond / 60;
-                mTempSecond -= minute * 60;
-                int second = mTempSecond;
-
-                String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
-                mDrivingTime.setText(time);
-            }
-        };
 
         startBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -179,6 +175,7 @@ public class MainActivity extends AppCompatActivity {
                     mDrivingLog.setStartDate(date);
                     mDrivingLog.setId(nextId);
                     List<Address> list;
+
                     try {
                         list = mGeocoder.getFromLocation(mDrivingLog.getStartLatitude(), mDrivingLog.getStartLongitude(), 1);
                         if (list.size() > 0) {
@@ -193,23 +190,12 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     startBtn.setImageResource(R.drawable.btn_stop);
-                    mStartTimerThread = new TimerThread();
-                    mStartTimerThread.start();
                 } else {
                     Intent intent = new Intent(getApplicationContext(), MyService.class);
                     stopService(intent);
-                    Context context = getApplicationContext();
                     Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
 
                     startBtn.setImageResource(R.drawable.btn_start);
-                    mStartTimerThread.setStop(false);
-                    mStartTimerThread.interrupt();
-                    mStartTimerThread = null;
-
-                    mSeconds = 0;
-                    mMeters = 0;
-                    mDrivingTime.setText("00:00:00");
-                    mDrivingDistance.setText("0.0km");
                     mRealm.beginTransaction();
                     Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
                     double latitude = lastKnownLocation.getLatitude();
@@ -300,27 +286,27 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    class TimerThread extends Thread {
-
-        private boolean stop = true;
-
-        public void setStop(boolean stop) {
-            this.stop = stop;
-        }
-
-        @Override
-        public void run() {
-            while (stop) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    break;
-                }
-                mHandler.sendEmptyMessage(0);
-            }
-        }
-    }
+//    class TimerThread extends Thread {
+//
+//        private boolean stop = true;
+//
+//        public void setStop(boolean stop) {
+//            this.stop = stop;
+//        }
+//
+//        @Override
+//        public void run() {
+//            while (stop) {
+//                try {
+//                    Thread.sleep(1000);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                    break;
+//                }
+//                mHandler.sendEmptyMessage(0);
+//            }
+//        }
+//    }
 
     private class ActionModeCallback implements ActionMode.Callback {
         @Override

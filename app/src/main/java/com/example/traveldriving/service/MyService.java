@@ -20,10 +20,53 @@ import com.example.traveldriving.model.MapPoint;
 import java.util.Date;
 
 public class MyService extends Service {
+    private int mSeconds = 0;
+    private int mMeters = 0;
+
+    private TimerThread mStartTimerThread;
+
     private static final String TAG = "MyService";
     private LocationListener mLocationListener;
     private LocationManager mLocationManager;
     private Location mPreviousLocation;
+
+    class TimerThread extends Thread {
+
+        private boolean stop = true;
+
+        public void setStop(boolean stop) {
+            mSeconds = 0;
+            mMeters = 0;
+            this.stop = stop;
+        }
+
+        @Override
+        public void run() {
+            while (stop) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    break;
+                }
+
+                mSeconds++;
+                int mTempSecond = mSeconds;
+                int hour = mTempSecond / 3600;
+                mTempSecond -= hour * 3600;
+                int minute = mTempSecond / 60;
+                mTempSecond -= minute * 60;
+                int second = mTempSecond;
+
+                Intent intent = new Intent("timer_update");
+                intent.putExtra("hour", hour);
+                intent.putExtra("minute", minute);
+                intent.putExtra("second", second);
+                sendBroadcast(intent);
+            }
+        }
+    }
+
 
     public MyService() {
     }
@@ -36,6 +79,9 @@ public class MyService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        mStartTimerThread = new TimerThread();
+        mStartTimerThread.start();
+
         mLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
@@ -43,6 +89,8 @@ public class MyService extends Service {
                     mPreviousLocation = location;
                 }
                 int distance = Math.round(location.distanceTo(mPreviousLocation));
+                mMeters += distance;
+
                 mPreviousLocation = location;
                 Log.d(TAG, String.valueOf(distance));
 
@@ -53,7 +101,7 @@ public class MyService extends Service {
                 intent.putExtra("latitude", latitude);
                 intent.putExtra("longitude", longitude);
                 intent.putExtra("date", date);
-                intent.putExtra("distance", distance);
+                intent.putExtra("meter", mMeters);
                 sendBroadcast(intent);
             }
 
@@ -151,5 +199,14 @@ public class MyService extends Service {
         if (mLocationManager != null) {
             mLocationManager.removeUpdates(mLocationListener);
         }
+        if (mStartTimerThread != null) {
+            mStartTimerThread.setStop(false);
+            mStartTimerThread.interrupt();
+            mStartTimerThread = null;
+        }
+
     }
+
+
 }
+
