@@ -160,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
 
                     }
 
-                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
                     mDrivingLog = new DrivingLog();
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
@@ -210,49 +210,32 @@ public class MainActivity extends AppCompatActivity {
                     mMeters = 0;
                     mDrivingTime.setText("00:00:00");
                     mDrivingDistance.setText("0.0km");
-                    mRealm.executeTransaction(new Realm.Transaction() {
-                        @Override
-                        public void execute(Realm realm) {
-                            Context context = getApplicationContext();
-                            if (ActivityCompat.checkSelfPermission(context, permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                                    && ActivityCompat.checkSelfPermission(context, permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    mRealm.beginTransaction();
+                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    double latitude = lastKnownLocation.getLatitude();
+                    double longitude = lastKnownLocation.getLongitude();
+                    Date date = new Date(lastKnownLocation.getTime());
+                    mDrivingLog.setStopLatitude(latitude);
+                    mDrivingLog.setStopLongitude(longitude);
+                    mDrivingLog.setStopDate(date);
 
-                                if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
-                                        && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
-                                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-                                    return;
-                                } else {
-                                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-                                    return;
-                                }
+                    DrivingLog newDrivingLog = mRealm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
 
-                            }
-                            Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                            double latitude = lastKnownLocation.getLatitude();
-                            double longitude = lastKnownLocation.getLongitude();
-                            Date date = new Date(lastKnownLocation.getTime());
-                            mDrivingLog.setStopLatitude(latitude);
-                            mDrivingLog.setStopLongitude(longitude);
-                            mDrivingLog.setStopDate(date);
+                    RealmList<MapPoint> newMapPoints = new RealmList<>();
+                    for (int i = 0; i < mMapPoints.size(); i++) {
+                        MapPoint newMapPoint = mRealm.createObject(MapPoint.class);
+                        newMapPoint.setCurrentDate(mMapPoints.get(i).getCurrentDate());
+                        newMapPoint.setLatitude(mMapPoints.get(i).getLatitude());
+                        newMapPoint.setLongitude(mMapPoints.get(i).getLongitude());
+                        newMapPoints.add(newMapPoint);
+                    }
 
-                            DrivingLog newDrivingLog = realm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
-
-                            RealmList<MapPoint> newMapPoints = new RealmList<>();
-                            for (int i = 0; i < mMapPoints.size(); i++) {
-                                MapPoint newMapPoint = mRealm.createObject(MapPoint.class);
-                                newMapPoint.setCurrentDate(mMapPoints.get(i).getCurrentDate());
-                                newMapPoint.setLatitude(mMapPoints.get(i).getLatitude());
-                                newMapPoint.setLongitude(mMapPoints.get(i).getLongitude());
-                                newMapPoints.add(newMapPoint);
-                            }
-
-                            newDrivingLog.setMapPoints(newMapPoints);
-                            mMapPoints = new ArrayList<MapPoint>();
-                            newMapPoints = null;
-                        }
-                    });
-
+                    newDrivingLog.setMapPoints(newMapPoints);
+                    mMapPoints = new ArrayList<MapPoint>();
+                    newMapPoints = null;
+                    mRealm.commitTransaction();
                 }
+
                 isStarted = !isStarted;
                 System.out.println(isStarted);
             }
