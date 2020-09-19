@@ -49,7 +49,7 @@ import io.realm.RealmList;
 
 
 public class MainActivity extends AppCompatActivity {
-    private static final String TAG = "MAIN";
+    private static final String TAG = "AppCompatActivity";
     //    private int mMeters = 0;
     private boolean isStarted = true;
 
@@ -110,9 +110,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        Log.d(TAG, "onDestroy");
-
         super.onDestroy();
+        Log.d(TAG, "onDestroy");
         mRealm.close();
     }
 
@@ -122,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Log.d(TAG, "onCreate");
 
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();
@@ -157,8 +157,10 @@ public class MainActivity extends AppCompatActivity {
 
                     }
 
-                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    Location lastKnownLocation = getLastKnownLocation();
                     mDrivingLog = new DrivingLog();
+                    assert lastKnownLocation != null;
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
                     Date date = new Date(lastKnownLocation.getTime());
@@ -200,7 +202,8 @@ public class MainActivity extends AppCompatActivity {
                     mDrivingDistance.setText("0.0km");
                     startBtn.setImageResource(R.drawable.btn_start);
                     mRealm.beginTransaction();
-                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    Location lastKnownLocation = getLastKnownLocation();
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
                     Date date = new Date(lastKnownLocation.getTime());
@@ -232,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initComponent() {
+        Log.d(TAG, "initComponent");
         mRecyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mRecyclerView.addItemDecoration(new LineItemDecoration(this, LinearLayout.VERTICAL));
@@ -345,4 +349,33 @@ public class MainActivity extends AppCompatActivity {
         mAdapter.notifyDataSetChanged();
     }
 
+    private Location getLastKnownLocation() {
+        mLocationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
+        List<String> providers = mLocationManager.getProviders(true);
+        Location bestLocation = null;
+        for (String provider : providers) {
+            if (ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
+                        && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
+//                    return;
+                } else {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
+//                    return;
+                }
+
+            }
+            Location l = mLocationManager.getLastKnownLocation(provider);
+            if (l == null) {
+                continue;
+            }
+            if (bestLocation == null || l.getAccuracy() < bestLocation.getAccuracy()) {
+                // Found best last known location: %s", l);
+                bestLocation = l;
+            }
+        }
+        return bestLocation;
+    }
 }
