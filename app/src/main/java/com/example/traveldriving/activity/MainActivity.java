@@ -74,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        Log.d(TAG, "onResume");
+
         if (mapChangedBroadcastReceiver == null) {
             mapChangedBroadcastReceiver = new BroadcastReceiver() {
                 @Override
@@ -108,6 +110,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        Log.d(TAG, "onDestroy");
+
         super.onDestroy();
         mRealm.close();
     }

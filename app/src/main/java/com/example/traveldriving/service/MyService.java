@@ -51,6 +51,8 @@ public class MyService extends Service {
                     break;
                 }
 
+                Log.d(TAG, "서비스 실행 중(스레드 안에서)");
+
                 mSeconds++;
                 int mTempSecond = mSeconds;
                 int hour = mTempSecond / 3600;
