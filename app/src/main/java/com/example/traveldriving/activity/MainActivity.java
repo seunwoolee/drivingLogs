@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -51,7 +52,6 @@ import io.realm.RealmList;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AppCompatActivity";
     //    private int mMeters = 0;
-    private boolean isStarted = true;
 
     private TextView mDrivingTime;
     private TextView mDrivingDistance;
@@ -68,43 +68,30 @@ public class MainActivity extends AppCompatActivity {
     private ActionModeCallback mActionModeCallback;
     private ActionMode mActionMode;
 
-    private DrivingLog mDrivingLog;
-    private List<MapPoint> mMapPoints;
+    private DrivingLog mDrivingLog = null;
+    private List<MapPoint> mMapPoints = null;
+
 
     @Override
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
 
-        if (mapChangedBroadcastReceiver == null) {
-            mapChangedBroadcastReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    MapPoint mapPoint = new MapPoint();
-                    mapPoint.setLatitude((Double) intent.getExtras().get("latitude"));
-                    mapPoint.setLongitude((Double) intent.getExtras().get("longitude"));
-                    mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
-                    mMapPoints.add(mapPoint);
-
-                    int meter = (int) intent.getExtras().get("meter");
-                    mDrivingDistance.setText(String.format("%d.%ckm", (meter / 1000), String.valueOf(meter % 1000).charAt(0)));
-                }
-            };
-        }
         if (timerBroadcastReceiver == null) {
             timerBroadcastReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
+                    Log.d(TAG, "timerBroadcastReceiver");
                     int hour = (int) intent.getExtras().get("hour");
                     int minute = (int) intent.getExtras().get("minute");
                     int second = (int) intent.getExtras().get("second");
                     String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
                     mDrivingTime.setText(time);
+                    mDrivingDistance.setText(String.format("%d.%ckm", (0 / 1000), String.valueOf(0 % 1000).charAt(0)));
                 }
             };
         }
 
-        registerReceiver(mapChangedBroadcastReceiver, new IntentFilter("location_update"));
         registerReceiver(timerBroadcastReceiver, new IntentFilter("timer_update"));
     }
 
@@ -139,46 +126,17 @@ public class MainActivity extends AppCompatActivity {
         startBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (isStarted) {
-                    Intent intent = new Intent(getApplicationContext(), MyService.class);
-                    startService(intent);
-                    Context context = getApplicationContext();
-                    if (ActivityCompat.checkSelfPermission(context, permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                            && ActivityCompat.checkSelfPermission(context, permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                        if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
-                                && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
-                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-                            return;
-                        } else {
-                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-                            return;
-                        }
-
-                    }
-
-//                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                    Location lastKnownLocation = getLastKnownLocation();
+                if (mDrivingLog == null) {
                     mDrivingLog = new DrivingLog();
-                    assert lastKnownLocation != null;
-                    double latitude = lastKnownLocation.getLatitude();
-                    double longitude = lastKnownLocation.getLongitude();
-                    Date date = new Date(lastKnownLocation.getTime());
-
-                    Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
-                    int nextId;
-                    if (currentIdNum == null) {
-                        nextId = 1;
+                    Context context = getApplicationContext();
+                    Intent intent = new Intent(context, MyService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent);
                     } else {
-                        nextId = currentIdNum.intValue() + 1;
+                        startService(intent);
                     }
-
-                    mDrivingLog.setStartLatitude(latitude);
-                    mDrivingLog.setStartLongitude(longitude);
-                    mDrivingLog.setStartDate(date);
-                    mDrivingLog.setId(nextId);
+                    setStartLocation();
                     List<Address> list;
-
                     try {
                         list = mGeocoder.getFromLocation(mDrivingLog.getStartLatitude(), mDrivingLog.getStartLongitude(), 1);
                         if (list.size() > 0) {
@@ -186,7 +144,6 @@ public class MainActivity extends AppCompatActivity {
                         } else {
                             Toast.makeText(MainActivity.this, "출발", Toast.LENGTH_SHORT).show();
                         }
-
                     } catch (IOException e) {
                         e.printStackTrace();
                         Log.d(TAG, "입출력 오류 - 서버에서 주소변환시 에러발생");
@@ -194,15 +151,14 @@ public class MainActivity extends AppCompatActivity {
 
                     startBtn.setImageResource(R.drawable.btn_stop);
                 } else {
-                    Intent intent = new Intent(getApplicationContext(), MyService.class);
+                    Context context = getApplicationContext();
+                    Intent intent = new Intent(context, MyService.class);
                     stopService(intent);
-
                     Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
                     mDrivingTime.setText("00:00:00");
                     mDrivingDistance.setText("0.0km");
                     startBtn.setImageResource(R.drawable.btn_start);
                     mRealm.beginTransaction();
-//                    Location lastKnownLocation = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
                     Location lastKnownLocation = getLastKnownLocation();
                     double latitude = lastKnownLocation.getLatitude();
                     double longitude = lastKnownLocation.getLongitude();
@@ -225,17 +181,15 @@ public class MainActivity extends AppCompatActivity {
                     newDrivingLog.setMapPoints(newMapPoints);
                     mMapPoints = new ArrayList<MapPoint>();
                     newMapPoints = null;
+                    mDrivingLog = null;
+
                     mRealm.commitTransaction();
                 }
-
-                isStarted = !isStarted;
-                System.out.println(isStarted);
             }
         });
     }
 
     private void initComponent() {
-        Log.d(TAG, "initComponent");
         mRecyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mRecyclerView.addItemDecoration(new LineItemDecoration(this, LinearLayout.VERTICAL));
@@ -349,7 +303,7 @@ public class MainActivity extends AppCompatActivity {
         mAdapter.notifyDataSetChanged();
     }
 
-    private Location getLastKnownLocation() {
+    public Location getLastKnownLocation() {
         mLocationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
         List<String> providers = mLocationManager.getProviders(true);
         Location bestLocation = null;
@@ -377,5 +331,35 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return bestLocation;
+    }
+
+    private void setStartLocation() {
+        Location lastKnownLocation = getLastKnownLocation();
+        double latitude, longitude;
+        Date date;
+        try {
+            latitude = lastKnownLocation.getLatitude();
+            longitude = lastKnownLocation.getLongitude();
+            date = new Date(lastKnownLocation.getTime());
+            mDrivingLog.setStartLatitude(latitude);
+            mDrivingLog.setStartLongitude(longitude);
+            mDrivingLog.setStartDate(date);
+        } catch (Exception e) {
+            date = new Date();
+            mDrivingLog.setStartLatitude(0);
+            mDrivingLog.setStartLongitude(0);
+            mDrivingLog.setStartDate(date);
+            e.printStackTrace();
+        }
+
+        Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
+        int nextId;
+        if (currentIdNum == null) {
+            nextId = 1;
+        } else {
+            nextId = currentIdNum.intValue() + 1;
+        }
+
+        mDrivingLog.setId(nextId);
     }
 }
