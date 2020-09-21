@@ -1,6 +1,7 @@
 package com.example.traveldriving.service;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -26,6 +27,9 @@ import androidx.core.app.NotificationCompat;
 import com.example.traveldriving.R;
 import com.example.traveldriving.activity.MainActivity;
 import com.example.traveldriving.model.MapPoint;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -50,6 +54,7 @@ public class MyService extends Service {
         }
 
 
+        @SuppressLint("MissingPermission")
         @Override
         public void run() {
             while (stop) {

@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -34,11 +35,16 @@ import android.widget.Toast;
 
 import com.example.traveldriving.R;
 import com.example.traveldriving.adapter.AdapterListDrivingLog;
+import com.example.traveldriving.broadCast.LocationUpdatesBroadcastReceiver;
 import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
 import com.example.traveldriving.service.MyService;
 import com.example.traveldriving.utils.Tools;
 import com.example.traveldriving.widget.LineItemDecoration;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,6 +77,18 @@ public class MainActivity extends AppCompatActivity {
     private DrivingLog mDrivingLog = null;
     private List<MapPoint> mMapPoints = null;
 
+    private static final long UPDATE_INTERVAL = 1000; // Every 60 seconds.
+    private static final long FASTEST_UPDATE_INTERVAL = 1000; // Every 30 seconds
+    private static final long MAX_WAIT_TIME = UPDATE_INTERVAL * 2; // Every 5 minutes.
+    private LocationRequest mLocationRequest;
+    private FusedLocationProviderClient mFusedLocationClient;
+
+
+    private PendingIntent getPendingIntent() {
+        Intent intent = new Intent(this, LocationUpdatesBroadcastReceiver.class);
+        intent.setAction(LocationUpdatesBroadcastReceiver.ACTION_PROCESS_UPDATES);
+        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
 
     @Override
     protected void onResume() {
@@ -82,6 +100,15 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     Log.d(TAG, "timerBroadcastReceiver");
+                    Location lastKnownLocation = getLastKnownLocation();
+                    if(lastKnownLocation != null){
+                        MapPoint mapPoint = new MapPoint();
+                        mapPoint.setLatitude((Double) lastKnownLocation.getLatitude());
+                        mapPoint.setLongitude((Double) lastKnownLocation.getLongitude());
+                        mapPoint.setCurrentDate((Date) new Date(lastKnownLocation.getTime()));
+                        mMapPoints.add(mapPoint);
+                    }
+
                     int hour = (int) intent.getExtras().get("hour");
                     int minute = (int) intent.getExtras().get("minute");
                     int second = (int) intent.getExtras().get("second");
@@ -109,6 +136,19 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Log.d(TAG, "onCreate");
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        createLocationRequest();
+        if (ActivityCompat.checkSelfPermission(this, permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        mFusedLocationClient.requestLocationUpdates(mLocationRequest, getPendingIntent());
 
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();
@@ -304,23 +344,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public Location getLastKnownLocation() {
+        if (ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
+                    && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
+//                    return;
+            } else {
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
+//                    return;
+            }
+
+        }
+
+//        FusedLocationProviderClient fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+//        fusedLocationClient.getLastLocation();
+
+
         mLocationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
         List<String> providers = mLocationManager.getProviders(true);
         Location bestLocation = null;
         for (String provider : providers) {
-            if (ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    && ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
-                        && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
-                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-//                    return;
-                } else {
-                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-//                    return;
-                }
-
-            }
             Location l = mLocationManager.getLastKnownLocation(provider);
             if (l == null) {
                 continue;
@@ -330,6 +375,7 @@ public class MainActivity extends AppCompatActivity {
                 bestLocation = l;
             }
         }
+        Log.d(TAG, String.valueOf(bestLocation));
         return bestLocation;
     }
 
@@ -362,4 +408,25 @@ public class MainActivity extends AppCompatActivity {
 
         mDrivingLog.setId(nextId);
     }
-}
+
+    private void createLocationRequest() {
+        mLocationRequest = new LocationRequest();
+
+        // Sets the desired interval for active location updates. This interval is
+        // inexact. You may not receive updates at all if no location sources are available, or
+        // you may receive them slower than requested. You may also receive updates faster than
+        // requested if other applications are requesting location at a faster interval.
+        // Note: apps running on "O" devices (regardless of targetSdkVersion) may receive updates
+        // less frequently than this interval when the app is no longer in the foreground.
+        mLocationRequest.setInterval(UPDATE_INTERVAL);
+
+        // Sets the fastest rate for active location updates. This interval is exact, and your
+        // application will never receive updates faster than this value.
+        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL);
+
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        // Sets the maximum time when batched location updates are delivered. Updates may be
+        // delivered sooner than this interval.
+        mLocationRequest.setMaxWaitTime(MAX_WAIT_TIME);
+    }}
