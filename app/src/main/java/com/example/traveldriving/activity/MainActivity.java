@@ -1,5 +1,6 @@
 package com.example.traveldriving.activity;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.view.ActionMode;
@@ -7,6 +8,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.Manifest;
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -20,10 +22,12 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,6 +37,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.traveldriving.BuildConfig;
 import com.example.traveldriving.R;
 import com.example.traveldriving.adapter.AdapterListDrivingLog;
 import com.example.traveldriving.broadCast.LocationUpdatesBroadcastReceiver;
@@ -57,7 +62,7 @@ import io.realm.RealmList;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AppCompatActivity";
-    //    private int mMeters = 0;
+    private static final int REQUEST_LOCATION_PERMISSION = 200;
 
     private TextView mDrivingTime;
     private TextView mDrivingDistance;
@@ -83,11 +88,17 @@ public class MainActivity extends AppCompatActivity {
     private LocationRequest mLocationRequest;
     private FusedLocationProviderClient mFusedLocationClient;
 
-
-    private PendingIntent getPendingIntent() {
-        Intent intent = new Intent(this, LocationUpdatesBroadcastReceiver.class);
-        intent.setAction(LocationUpdatesBroadcastReceiver.ACTION_PROCESS_UPDATES);
-        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    public void requestPermission() {
+        if (ActivityCompat.checkSelfPermission(this,
+                permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this,
+                        permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                    MainActivity.this,
+                    new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION},
+                    REQUEST_LOCATION_PERMISSION);
+        }
     }
 
     @Override
@@ -129,25 +140,47 @@ public class MainActivity extends AppCompatActivity {
         mRealm.close();
     }
 
-    @SuppressLint("SetTextI18n")
+
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        boolean permissionToRecordAccepted = false;
+        if (requestCode == REQUEST_LOCATION_PERMISSION) {
+            permissionToRecordAccepted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        }
+        if (!permissionToRecordAccepted){
+            Toast.makeText(MainActivity.this, "권한이 거부되었습니다. 권한을 승인해주세요.", Toast.LENGTH_LONG).show();
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    Intent intent = new Intent();
+                    intent.setAction(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    Uri uri = Uri.fromParts("package",
+                            BuildConfig.APPLICATION_ID, null);
+                    intent.setData(uri);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                    finish();
+                }
+            }, 1500);
+
+        }
+    }
+
+
+    @SuppressLint({"SetTextI18n", "MissingPermission"})
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Log.d(TAG, "onCreate");
+
+        requestPermission();
+
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         createLocationRequest();
-        if (ActivityCompat.checkSelfPermission(this, permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
         mFusedLocationClient.requestLocationUpdates(mLocationRequest, getPendingIntent());
 
         Realm.init(this);
@@ -166,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
         startBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                requestPermission();
                 if (mDrivingLog == null) {
                     mDrivingLog = new DrivingLog();
                     Context context = getApplicationContext();
@@ -411,22 +445,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void createLocationRequest() {
         mLocationRequest = new LocationRequest();
-
-        // Sets the desired interval for active location updates. This interval is
-        // inexact. You may not receive updates at all if no location sources are available, or
-        // you may receive them slower than requested. You may also receive updates faster than
-        // requested if other applications are requesting location at a faster interval.
-        // Note: apps running on "O" devices (regardless of targetSdkVersion) may receive updates
-        // less frequently than this interval when the app is no longer in the foreground.
         mLocationRequest.setInterval(UPDATE_INTERVAL);
-
-        // Sets the fastest rate for active location updates. This interval is exact, and your
-        // application will never receive updates faster than this value.
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL);
-
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        // Sets the maximum time when batched location updates are delivered. Updates may be
-        // delivered sooner than this interval.
         mLocationRequest.setMaxWaitTime(MAX_WAIT_TIME);
-    }}
+    }
+
+    private PendingIntent getPendingIntent() {
+        Intent intent = new Intent(this, LocationUpdatesBroadcastReceiver.class);
+        intent.setAction(LocationUpdatesBroadcastReceiver.ACTION_PROCESS_UPDATES);
+        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+}
