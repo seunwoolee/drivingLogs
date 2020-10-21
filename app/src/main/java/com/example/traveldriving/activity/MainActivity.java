@@ -8,15 +8,15 @@ import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import android.Manifest;
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -26,7 +26,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Message;
+import android.os.IBinder;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Menu;
@@ -34,59 +34,69 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.traveldriving.BuildConfig;
 import com.example.traveldriving.R;
 import com.example.traveldriving.adapter.AdapterListDrivingLog;
-import com.example.traveldriving.broadCast.LocationUpdatesBroadcastReceiver;
 import com.example.traveldriving.model.DrivingLog;
-import com.example.traveldriving.model.MapPoint;
 import com.example.traveldriving.service.MyService;
 import com.example.traveldriving.utils.Tools;
 import com.example.traveldriving.widget.LineItemDecoration;
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.tasks.OnSuccessListener;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import io.realm.Realm;
-import io.realm.RealmList;
 
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AppCompatActivity";
     private static final int REQUEST_LOCATION_PERMISSION = 200;
 
-    private TextView mDrivingTime;
-    private TextView mDrivingDistance;
     private RecyclerView mRecyclerView;
 
     private Realm mRealm;
-    private Geocoder mGeocoder;
-    //    private TimerThread mStartTimerThread;
-    private LocationManager mLocationManager;
+
     private AdapterListDrivingLog mAdapter;
-    private static Handler mHandler;
-    private BroadcastReceiver mapChangedBroadcastReceiver;
-    private BroadcastReceiver timerBroadcastReceiver;
     private ActionModeCallback mActionModeCallback;
     private ActionMode mActionMode;
 
-    private DrivingLog mDrivingLog = null;
-    private List<MapPoint> mMapPoints = null;
+    private boolean mIsBound = false;
+    private MyService mMyService;
 
-    private static final long UPDATE_INTERVAL = 1000; // Every 60 seconds.
-    private static final long FASTEST_UPDATE_INTERVAL = 1000; // Every 30 seconds
-    private static final long MAX_WAIT_TIME = UPDATE_INTERVAL * 2; // Every 5 minutes.
-    private LocationRequest mLocationRequest;
-    private FusedLocationProviderClient mFusedLocationClient;
+    ImageButton mStartBtn;
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mIsBound = true;
+            MyService.MyServiceBinder binder = (MyService.MyServiceBinder) service;
+            mMyService = binder.getService();
+            if (mMyService.isDriving()) {
+                mStartBtn.setImageResource(R.drawable.btn_stop);
+            } else {
+                mStartBtn.setImageResource(R.drawable.btn_start);
+            }
+
+            mStartBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (!mMyService.isDriving()) {
+                        mMyService.startDriving();
+                        mStartBtn.setImageResource(R.drawable.btn_stop);
+                    } else {
+                        mMyService.stopDriving();
+                        mStartBtn.setImageResource(R.drawable.btn_start);
+                        mAdapter.notifyDataSetChanged();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mIsBound = false;
+        }
+    };
 
     public void requestPermission() {
         if (ActivityCompat.checkSelfPermission(this,
@@ -102,56 +112,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        Log.d(TAG, "onResume");
-        if (mapChangedBroadcastReceiver == null) {
-            mapChangedBroadcastReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    MapPoint mapPoint = new MapPoint();
-                    mapPoint.setLatitude((Double) intent.getExtras().get("latitude"));
-                    mapPoint.setLongitude((Double) intent.getExtras().get("longitude"));
-                    mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
-                    mMapPoints.add(mapPoint);
-
-                    int meter = (int) intent.getExtras().get("meter");
-                    mDrivingDistance.setText(String.format("%d.%ckm", (meter / 1000), String.valueOf(meter % 1000).charAt(0)));
-                }
-            };
-        }
-        if (timerBroadcastReceiver == null) {
-            timerBroadcastReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    Location lastKnownLocation = getLastKnownLocation();
-                    if(lastKnownLocation != null){
-                        MapPoint mapPoint = new MapPoint();
-                        mapPoint.setLatitude((Double) lastKnownLocation.getLatitude());
-                        mapPoint.setLongitude((Double) lastKnownLocation.getLongitude());
-                        mapPoint.setCurrentDate((Date) new Date(lastKnownLocation.getTime()));
-                        mMapPoints.add(mapPoint);
-                    }
-
-                    int hour = (int) intent.getExtras().get("hour");
-                    int minute = (int) intent.getExtras().get("minute");
-                    int second = (int) intent.getExtras().get("second");
-                    String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
-                    mDrivingTime.setText(time);
-                    mDrivingDistance.setText(String.format("%d.%ckm", (0 / 1000), String.valueOf(0 % 1000).charAt(0)));
-                }
-            };
-        }
-
-        registerReceiver(mapChangedBroadcastReceiver, new IntentFilter("location_update"));
-        registerReceiver(timerBroadcastReceiver, new IntentFilter("timer_update"));
-    }
-
-    @Override
     protected void onDestroy() {
-        super.onDestroy();
         Log.d(TAG, "onDestroy");
+        if (mIsBound) {
+            mIsBound = false;
+            unbindService(serviceConnection);
+        }
         mRealm.close();
+        super.onDestroy();
     }
 
     @Override
@@ -161,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_LOCATION_PERMISSION) {
             permissionToRecordAccepted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
         }
-        if (!permissionToRecordAccepted){
+        if (!permissionToRecordAccepted) {
             Toast.makeText(MainActivity.this, "권한이 거부되었습니다. 권한을 승인해주세요.", Toast.LENGTH_LONG).show();
             new Handler().postDelayed(new Runnable() {
                 @Override
@@ -188,91 +156,18 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        requestPermission();
-
-        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        createLocationRequest();
-        mFusedLocationClient.requestLocationUpdates(mLocationRequest, getPendingIntent());
+        mStartBtn = findViewById(R.id.startBtn);
 
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();
 
         initComponent();
 
-        mMapPoints = new ArrayList<MapPoint>();
+        requestPermission();
 
-        ImageButton startBtn = findViewById(R.id.startBtn);
-        mDrivingTime = findViewById(R.id.drivingTime);
-        mDrivingDistance = findViewById(R.id.drivingDistance);
-        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        mGeocoder = new Geocoder(this);
-
-        startBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                requestPermission();
-                if (mDrivingLog == null) {
-                    mDrivingLog = new DrivingLog();
-                    Context context = getApplicationContext();
-                    Intent intent = new Intent(context, MyService.class);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(intent);
-                    } else {
-                        startService(intent);
-                    }
-                    setStartLocation();
-                    List<Address> list;
-                    try {
-                        list = mGeocoder.getFromLocation(mDrivingLog.getStartLatitude(), mDrivingLog.getStartLongitude(), 1);
-                        if (list.size() > 0) {
-                            Toast.makeText(MainActivity.this, mDrivingLog.getReadableLocation(context, true), Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(MainActivity.this, "출발", Toast.LENGTH_SHORT).show();
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        Log.d(TAG, "입출력 오류 - 서버에서 주소변환시 에러발생");
-                    }
-
-                    startBtn.setImageResource(R.drawable.btn_stop);
-                } else {
-                    Context context = getApplicationContext();
-                    Intent intent = new Intent(context, MyService.class);
-                    stopService(intent);
-                    Toast.makeText(MainActivity.this, "종료", Toast.LENGTH_SHORT).show();
-                    mDrivingTime.setText("00:00:00");
-                    mDrivingDistance.setText("0.0km");
-                    startBtn.setImageResource(R.drawable.btn_start);
-                    mRealm.beginTransaction();
-                    Location lastKnownLocation = getLastKnownLocation();
-                    double latitude = lastKnownLocation.getLatitude();
-                    double longitude = lastKnownLocation.getLongitude();
-                    Date date = new Date(lastKnownLocation.getTime());
-                    mDrivingLog.setStopLatitude(latitude);
-                    mDrivingLog.setStopLongitude(longitude);
-                    mDrivingLog.setStopDate(date);
-
-                    DrivingLog newDrivingLog = mRealm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
-
-                    RealmList<MapPoint> newMapPoints = new RealmList<>();
-                    for (int i = 0; i < mMapPoints.size(); i++) {
-                        MapPoint newMapPoint = mRealm.createObject(MapPoint.class);
-                        newMapPoint.setCurrentDate(mMapPoints.get(i).getCurrentDate());
-                        newMapPoint.setLatitude(mMapPoints.get(i).getLatitude());
-                        newMapPoint.setLongitude(mMapPoints.get(i).getLongitude());
-                        newMapPoints.add(newMapPoint);
-                    }
-
-                    newDrivingLog.setMapPoints(newMapPoints);
-                    mMapPoints = new ArrayList<MapPoint>();
-                    newMapPoints = null;
-                    mDrivingLog = null;
-
-                    mRealm.commitTransaction();
-                }
-            }
-        });
+        Intent intent = new Intent(this, MyService.class);
+        startService(intent);
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
     private void initComponent() {
@@ -389,84 +284,5 @@ public class MainActivity extends AppCompatActivity {
         mAdapter.notifyDataSetChanged();
     }
 
-    public Location getLastKnownLocation() {
-        if (ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(getApplicationContext(), permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_FINE_LOCATION)
-                    && ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission.ACCESS_COARSE_LOCATION)) {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-//                    return;
-            } else {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION}, 100);
-//                    return;
-            }
-
-        }
-
-//        FusedLocationProviderClient fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-//        fusedLocationClient.getLastLocation();
-
-
-        mLocationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
-        List<String> providers = mLocationManager.getProviders(true);
-        Location bestLocation = null;
-        for (String provider : providers) {
-            Location l = mLocationManager.getLastKnownLocation(provider);
-            if (l == null) {
-                continue;
-            }
-            if (bestLocation == null || l.getAccuracy() < bestLocation.getAccuracy()) {
-                // Found best last known location: %s", l);
-                bestLocation = l;
-            }
-        }
-        Log.d(TAG, String.valueOf(bestLocation));
-        return bestLocation;
-    }
-
-    private void setStartLocation() {
-        Location lastKnownLocation = getLastKnownLocation();
-        double latitude, longitude;
-        Date date;
-        try {
-            latitude = lastKnownLocation.getLatitude();
-            longitude = lastKnownLocation.getLongitude();
-            date = new Date(lastKnownLocation.getTime());
-            mDrivingLog.setStartLatitude(latitude);
-            mDrivingLog.setStartLongitude(longitude);
-            mDrivingLog.setStartDate(date);
-        } catch (Exception e) {
-            date = new Date();
-            mDrivingLog.setStartLatitude(0);
-            mDrivingLog.setStartLongitude(0);
-            mDrivingLog.setStartDate(date);
-            e.printStackTrace();
-        }
-
-        Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
-        int nextId;
-        if (currentIdNum == null) {
-            nextId = 1;
-        } else {
-            nextId = currentIdNum.intValue() + 1;
-        }
-
-        mDrivingLog.setId(nextId);
-    }
-
-    private void createLocationRequest() {
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(UPDATE_INTERVAL);
-        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setMaxWaitTime(MAX_WAIT_TIME);
-    }
-
-    private PendingIntent getPendingIntent() {
-        Intent intent = new Intent(this, LocationUpdatesBroadcastReceiver.class);
-        intent.setAction(LocationUpdatesBroadcastReceiver.ACTION_PROCESS_UPDATES);
-        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-    }
 
 }

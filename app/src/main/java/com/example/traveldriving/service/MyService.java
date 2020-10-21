@@ -13,6 +13,8 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.MediaPlayer;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -26,6 +28,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.example.traveldriving.R;
 import com.example.traveldriving.activity.MainActivity;
+import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -35,155 +38,169 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-public class MyService extends Service {
-    private int mSeconds = 0;
-    private int mMeters = 0;
-    private LocationListener mLocationListener;
-    private Location mPreviousLocation;
-    private TimerThread mStartTimerThread;
+import io.realm.Realm;
+import io.realm.RealmList;
 
+public class MyService extends Service {
+    private static final String NOTIFICATION_CHANNEL_ID = "channel1_ID";
+    private static final String NOTIFICATION_CHANNEL_NAME = "channel1";
     private static final String TAG = "MyService";
 
-    class TimerThread extends Thread {
-        private boolean stop = true;
+    private List<MapPoint> mMapPoints = null;
+    private DrivingLog mDrivingLog = null;
+    LocationListener mLocationListener;
+    LocationManager mLocationManager;
 
-        @SuppressLint("MissingPermission")
-        public TimerThread() {
-            mLocationListener = new LocationListener() {
-                @Override
-                public void onLocationChanged(Location location) {
-                    if (mPreviousLocation == null) {
-                        mPreviousLocation = location;
-                    }
-                    int distance = Math.round(location.distanceTo(mPreviousLocation));
-                    mMeters += distance;
+    private Realm mRealm;
+    private final MyServiceBinder myServiceBinder = new MyServiceBinder();
 
-                    mPreviousLocation = location;
-                    Log.d(TAG, String.valueOf(distance));
 
-                    double latitude = location.getLatitude();
-                    double longitude = location.getLongitude();
-                    Date date = new Date(location.getTime());
-                    Intent intent = new Intent("location_update");
-                    intent.putExtra("latitude", latitude);
-                    intent.putExtra("longitude", longitude);
-                    intent.putExtra("date", date);
-                    intent.putExtra("meter", mMeters);
-                    sendBroadcast(intent);
-                }
+    public boolean isDriving() {
+        return mDrivingLog != null;
+    }
 
-                @Override
-                public void onStatusChanged(String provider, int status, Bundle extras) {
-                }
+    @SuppressLint("MissingPermission")
+    public void startDriving() {
+        mDrivingLog = new DrivingLog();
+        mMapPoints = new ArrayList<MapPoint>();
+        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 50, mLocationListener);
 
-                @Override
-                public void onProviderEnabled(String provider) {
-                }
-
-                @Override
-                public void onProviderDisabled(String provider) {
-                    Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                }
-            };
-            LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, mLocationListener);
+        Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
+        Log.d(TAG, String.valueOf(currentIdNum));
+        int nextId;
+        if (currentIdNum == null) {
+            nextId = 1;
+        } else {
+            nextId = currentIdNum.intValue() + 1;
         }
+        mDrivingLog.setId(nextId);
 
-        public void setStop(boolean stop) {
-            mSeconds = 0;
-            mMeters = 0;
-            this.stop = stop;
-        }
+        makeForegroundService();
+    }
 
-        @Override
-        public void run() {
-            while (stop) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    break;
-                }
+    public void stopDriving() {
+        mLocationManager.removeUpdates(mLocationListener);
 
-                Log.d(TAG, "서비스 실행 중(스레드 안에서)");
+        if (mMapPoints.size() > 0) {
+            mRealm.beginTransaction();
 
-                mSeconds++;
-                int mTempSecond = mSeconds;
-                int hour = mTempSecond / 3600;
-                mTempSecond -= hour * 3600;
-                int minute = mTempSecond / 60;
-                mTempSecond -= minute * 60;
-                int second = mTempSecond;
+            DrivingLog newDrivingLog = mRealm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
+            RealmList<MapPoint> newMapPoints = new RealmList<>();
+            int length = mMapPoints.size();
 
-                Intent intent = new Intent("timer_update");
-                intent.putExtra("hour", hour);
-                intent.putExtra("minute", minute);
-                intent.putExtra("second", second);
-                sendBroadcast(intent);
+            newDrivingLog.setStartLatitude(mMapPoints.get(0).getLatitude());
+            newDrivingLog.setStartLongitude(mMapPoints.get(0).getLongitude());
+            newDrivingLog.setStartDate(mMapPoints.get(0).getCurrentDate());
+
+            for (int i = 0; i < length; i++) {
+                MapPoint newMapPoint = mRealm.createObject(MapPoint.class);
+                newMapPoint.setCurrentDate(mMapPoints.get(i).getCurrentDate());
+                newMapPoint.setLatitude(mMapPoints.get(i).getLatitude());
+                newMapPoint.setLongitude(mMapPoints.get(i).getLongitude());
+                newMapPoints.add(newMapPoint);
             }
+
+            newDrivingLog.setStopLatitude(mMapPoints.get(length - 1).getLatitude());
+            newDrivingLog.setStopLongitude(mMapPoints.get(length - 1).getLongitude());
+            newDrivingLog.setStopDate(mMapPoints.get(length - 1).getCurrentDate());
+
+            newDrivingLog.setMapPoints(newMapPoints);
+            mRealm.commitTransaction();
         }
+        mMapPoints = null;
+        mDrivingLog = null;
+        stopForeground(true);
     }
 
     public MyService() {
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
-        // TODO: Return the communication channel to the service.
-        throw new UnsupportedOperationException("Not yet implemented");
+    public void onCreate() {
+        super.onCreate();
+        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        mLocationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                double latitude = location.getLatitude();
+                double longitude = location.getLongitude();
+                Date date = new Date(location.getTime());
+
+                MapPoint mapPoint = new MapPoint(latitude, longitude, date);
+                mMapPoints.add(mapPoint);
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
+        };
+
+        Realm.init(this);
+        mRealm = Realm.getDefaultInstance();
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "default");
-        builder.setSmallIcon(R.mipmap.ic_launcher);
-        builder.setContentTitle("포그라운드 실행중");
-        builder.setContentText("포그라운드 서비스 실행");
-
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        builder.setContentIntent(pendingIntent);
-
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        manager.createNotificationChannel(new NotificationChannel("default", "기본 채널", NotificationManager.IMPORTANCE_DEFAULT));
-
-        startForeground(1, builder.build());
-
-        mStartTimerThread = new TimerThread();
-        mStartTimerThread.start();
-
-        return START_STICKY;
+    public IBinder onBind(Intent intent) {
+        return myServiceBinder;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mStartTimerThread != null) {
-            mStartTimerThread.setStop(false);
-            mStartTimerThread.interrupt();
-            mStartTimerThread = null;
+        if (mLocationListener != null) {
+            mLocationListener = null;
         }
-        stopForeground(true);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private void startForegroundService() {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "default");
-        builder.setSmallIcon(R.mipmap.ic_launcher);
-        builder.setContentTitle("포그라운드 실행중");
-        builder.setContentText("포그라운드 서비스 실행");
+    public class MyServiceBinder extends Binder {
+        public MyService getService() {
+            return MyService.this;
+        }
+    }
 
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
-        builder.setContentIntent(pendingIntent);
+    private void makeForegroundService() {
+        NotificationManager notificationManager
+                = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        manager.createNotificationChannel(new NotificationChannel("default", "기본 채널", NotificationManager.IMPORTANCE_DEFAULT));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            int importance = NotificationManager.IMPORTANCE_LOW;
 
-        startForeground(1, builder.build());
+            NotificationChannel notificationChannel
+                    = new NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    NOTIFICATION_CHANNEL_NAME,
+                    importance);
+
+            notificationManager.createNotificationChannel(notificationChannel);
+        }
+
+        int notificationId = 1010;
+
+        NotificationCompat.Builder builder
+                = new NotificationCompat.Builder(getApplicationContext(),
+                NOTIFICATION_CHANNEL_ID);
+
+        builder.setSmallIcon(R.drawable.ic_monetization_on);
+        builder.setContentTitle("운행기록 저장 중");
+        builder.setContentText("운행기록 저장 중");
+
+        Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+        PendingIntent contentIntent =
+                PendingIntent.getActivity(getApplicationContext(), 1010, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        builder.setContentIntent(contentIntent);
+
+        startForeground(notificationId, builder.build());
     }
 
 

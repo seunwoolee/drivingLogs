@@ -9,6 +9,12 @@ public class MapPoint extends RealmObject {
     private double longitude;
     private Date currentDate;
 
+    public MapPoint(Double latitude, Double longitude, Date currentDate) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.currentDate = currentDate;
+    }
+
     public MapPoint() {
     }
 
