@@ -38,14 +38,58 @@ import java.util.List;
 public class MyService extends Service {
     private int mSeconds = 0;
     private int mMeters = 0;
-
+    private LocationListener mLocationListener;
+    private Location mPreviousLocation;
     private TimerThread mStartTimerThread;
 
     private static final String TAG = "MyService";
 
     class TimerThread extends Thread {
-//        private Context context = getApplicationContext();
         private boolean stop = true;
+
+        @SuppressLint("MissingPermission")
+        public TimerThread() {
+            mLocationListener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    if (mPreviousLocation == null) {
+                        mPreviousLocation = location;
+                    }
+                    int distance = Math.round(location.distanceTo(mPreviousLocation));
+                    mMeters += distance;
+
+                    mPreviousLocation = location;
+                    Log.d(TAG, String.valueOf(distance));
+
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
+                    Date date = new Date(location.getTime());
+                    Intent intent = new Intent("location_update");
+                    intent.putExtra("latitude", latitude);
+                    intent.putExtra("longitude", longitude);
+                    intent.putExtra("date", date);
+                    intent.putExtra("meter", mMeters);
+                    sendBroadcast(intent);
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+                    Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+            };
+            LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, mLocationListener);
+        }
 
         public void setStop(boolean stop) {
             mSeconds = 0;
@@ -53,8 +97,6 @@ public class MyService extends Service {
             this.stop = stop;
         }
 
-
-        @SuppressLint("MissingPermission")
         @Override
         public void run() {
             while (stop) {
@@ -124,6 +166,7 @@ public class MyService extends Service {
             mStartTimerThread.interrupt();
             mStartTimerThread = null;
         }
+        stopForeground(true);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)

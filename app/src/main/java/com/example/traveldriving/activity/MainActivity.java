@@ -105,12 +105,25 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        if (mapChangedBroadcastReceiver == null) {
+            mapChangedBroadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    MapPoint mapPoint = new MapPoint();
+                    mapPoint.setLatitude((Double) intent.getExtras().get("latitude"));
+                    mapPoint.setLongitude((Double) intent.getExtras().get("longitude"));
+                    mapPoint.setCurrentDate((Date) intent.getExtras().get("date"));
+                    mMapPoints.add(mapPoint);
 
+                    int meter = (int) intent.getExtras().get("meter");
+                    mDrivingDistance.setText(String.format("%d.%ckm", (meter / 1000), String.valueOf(meter % 1000).charAt(0)));
+                }
+            };
+        }
         if (timerBroadcastReceiver == null) {
             timerBroadcastReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    Log.d(TAG, "timerBroadcastReceiver");
                     Location lastKnownLocation = getLastKnownLocation();
                     if(lastKnownLocation != null){
                         MapPoint mapPoint = new MapPoint();
@@ -130,6 +143,7 @@ public class MainActivity extends AppCompatActivity {
             };
         }
 
+        registerReceiver(mapChangedBroadcastReceiver, new IntentFilter("location_update"));
         registerReceiver(timerBroadcastReceiver, new IntentFilter("timer_update"));
     }
 
@@ -139,8 +153,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onDestroy");
         mRealm.close();
     }
-
-
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
