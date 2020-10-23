@@ -21,6 +21,7 @@ import android.os.IBinder;
 import android.provider.Settings;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -31,8 +32,15 @@ import com.example.traveldriving.activity.MainActivity;
 import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationAvailability;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -45,14 +53,79 @@ public class MyService extends Service {
     private static final String NOTIFICATION_CHANNEL_ID = "channel1_ID";
     private static final String NOTIFICATION_CHANNEL_NAME = "channel1";
     private static final String TAG = "MyService";
+    private static final long INTERVAL_TIME = 5000;
+    private static final long FASTEST_INTERVAL_TIME = 2000;
 
     private List<MapPoint> mMapPoints = null;
     private DrivingLog mDrivingLog = null;
-    LocationListener mLocationListener;
-    LocationManager mLocationManager;
+
+    private Location lastKnownLocation;
+    private FusedLocationProviderClient mFusedLocationProviderClient;
+    private LocationListener mLocationListener;
+    private LocationManager mLocationManager;
+
 
     private Realm mRealm;
     private final MyServiceBinder myServiceBinder = new MyServiceBinder();
+
+    private void getLocation() {
+        Context context = getApplicationContext();
+        FusedLocationProviderClient fusedLocationProviderClient = new FusedLocationProviderClient(context);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        Task<Location> task = fusedLocationProviderClient.getLastLocation();
+        task.addOnSuccessListener(new OnSuccessListener<Location>() {
+            @Override
+            public void onSuccess(Location location) {
+                lastKnownLocation = location;
+                Log.d(TAG, String.valueOf(location.getLatitude()));
+            }
+        });
+    }
+
+    private void startLocationUpdate() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        LocationRequest locationRequest = LocationRequest.create();
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        locationRequest.setInterval(INTERVAL_TIME);
+        locationRequest.setFastestInterval(FASTEST_INTERVAL_TIME);
+
+        mFusedLocationProviderClient.requestLocationUpdates(locationRequest,
+                new LocationCallback() {
+                    @Override
+                    public void onLocationResult(LocationResult locationResult) {
+                        super.onLocationResult(locationResult);
+                        Location location = locationResult.getLastLocation();
+                        Log.d(TAG, String.valueOf(location.getLatitude()));
+                    }
+                }, null);
+    }
+
+    public void stopLocationUpdates() {
+        if (mFusedLocationProviderClient != null) {
+            try {
+                LocationCallback locationCallback = new LocationCallback() {
+                    @Override
+                    public void onLocationResult(LocationResult locationResult) {
+                        Log.d(TAG, "dd");
+                    }
+                    public void onLocationAvailability(LocationAvailability var1) {
+                        Log.d(TAG, "bb");
+                    }
+                };
+
+                final Task<Void> voidTask = mFusedLocationProviderClient.removeLocationUpdates(locationCallback);
+
+            }
+            catch (SecurityException exp) {
+                Log.d(TAG, " Security exception while removeLocationUpdates");
+            }
+        }
+    }
 
 
     public boolean isDriving() {
@@ -63,8 +136,8 @@ public class MyService extends Service {
     public void startDriving() {
         mDrivingLog = new DrivingLog();
         mMapPoints = new ArrayList<MapPoint>();
-        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 50, mLocationListener);
-
+//        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 50, mLocationListener);
+        startLocationUpdate();
         Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
         Log.d(TAG, String.valueOf(currentIdNum));
         int nextId;
@@ -79,8 +152,8 @@ public class MyService extends Service {
     }
 
     public void stopDriving() {
-        mLocationManager.removeUpdates(mLocationListener);
-
+//        mLocationManager.removeUpdates(mLocationListener);
+        stopLocationUpdates();
         if (mMapPoints.size() > 0) {
             mRealm.beginTransaction();
 
@@ -119,6 +192,8 @@ public class MyService extends Service {
     public void onCreate() {
         super.onCreate();
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        Context context = getApplicationContext();
+
         mLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
@@ -145,6 +220,9 @@ public class MyService extends Service {
                 startActivity(intent);
             }
         };
+
+        mFusedLocationProviderClient = new FusedLocationProviderClient(context);
+
 
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();

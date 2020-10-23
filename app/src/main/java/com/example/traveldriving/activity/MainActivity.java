@@ -161,8 +161,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    @SuppressLint({"SetTextI18n", "MissingPermission"})
-    @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
