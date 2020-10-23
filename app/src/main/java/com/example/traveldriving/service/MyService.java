@@ -63,7 +63,7 @@ public class MyService extends Service {
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private LocationListener mLocationListener;
     private LocationManager mLocationManager;
-
+    private LocationUpdateThread mLocationUpdateThread;
 
     private Realm mRealm;
     private final MyServiceBinder myServiceBinder = new MyServiceBinder();
@@ -79,54 +79,19 @@ public class MyService extends Service {
             @Override
             public void onSuccess(Location location) {
                 lastKnownLocation = location;
-                Log.d(TAG, String.valueOf(location.getLatitude()));
+                if (location != null) {
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
+                    Date date = new Date(location.getTime());
+
+                    MapPoint mapPoint = new MapPoint(latitude, longitude, date);
+                    mMapPoints.add(mapPoint);
+
+                    Log.d(TAG, String.valueOf(location.getLatitude()));
+                }
             }
         });
     }
-
-    private void startLocationUpdate() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        LocationRequest locationRequest = LocationRequest.create();
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        locationRequest.setInterval(INTERVAL_TIME);
-        locationRequest.setFastestInterval(FASTEST_INTERVAL_TIME);
-
-        mFusedLocationProviderClient.requestLocationUpdates(locationRequest,
-                new LocationCallback() {
-                    @Override
-                    public void onLocationResult(LocationResult locationResult) {
-                        super.onLocationResult(locationResult);
-                        Location location = locationResult.getLastLocation();
-                        Log.d(TAG, String.valueOf(location.getLatitude()));
-                    }
-                }, null);
-    }
-
-    public void stopLocationUpdates() {
-        if (mFusedLocationProviderClient != null) {
-            try {
-                LocationCallback locationCallback = new LocationCallback() {
-                    @Override
-                    public void onLocationResult(LocationResult locationResult) {
-                        Log.d(TAG, "dd");
-                    }
-                    public void onLocationAvailability(LocationAvailability var1) {
-                        Log.d(TAG, "bb");
-                    }
-                };
-
-                final Task<Void> voidTask = mFusedLocationProviderClient.removeLocationUpdates(locationCallback);
-
-            }
-            catch (SecurityException exp) {
-                Log.d(TAG, " Security exception while removeLocationUpdates");
-            }
-        }
-    }
-
 
     public boolean isDriving() {
         return mDrivingLog != null;
@@ -136,8 +101,9 @@ public class MyService extends Service {
     public void startDriving() {
         mDrivingLog = new DrivingLog();
         mMapPoints = new ArrayList<MapPoint>();
-//        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 50, mLocationListener);
-        startLocationUpdate();
+        mLocationUpdateThread = new LocationUpdateThread();
+        mLocationUpdateThread.start();
+
         Number currentIdNum = mRealm.where(DrivingLog.class).max("id");
         Log.d(TAG, String.valueOf(currentIdNum));
         int nextId;
@@ -152,8 +118,13 @@ public class MyService extends Service {
     }
 
     public void stopDriving() {
-//        mLocationManager.removeUpdates(mLocationListener);
-        stopLocationUpdates();
+
+        if (mLocationUpdateThread != null) {
+            mLocationUpdateThread.setStop(false);
+            mLocationUpdateThread.interrupt();
+            mLocationUpdateThread = null;
+        }
+
         if (mMapPoints.size() > 0) {
             mRealm.beginTransaction();
 
@@ -281,6 +252,31 @@ public class MyService extends Service {
         startForeground(notificationId, builder.build());
     }
 
+
+    class LocationUpdateThread extends Thread {
+
+        private boolean stop = true;
+
+        public void setStop(boolean stop) {
+            this.stop = stop;
+        }
+
+        @Override
+        public void run() {
+            while (stop) {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    break;
+                }
+
+                getLocation();
+            }
+        }
+
+
+    }
 
 }
 
