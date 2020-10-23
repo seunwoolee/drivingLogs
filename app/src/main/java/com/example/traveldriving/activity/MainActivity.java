@@ -8,6 +8,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.Manifest;
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
@@ -52,6 +53,10 @@ import io.realm.Realm;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AppCompatActivity";
     private static final int REQUEST_LOCATION_PERMISSION = 200;
+    private static final String[] needPermissions = {
+            permission.ACCESS_COARSE_LOCATION,
+            permission.ACCESS_FINE_LOCATION,
+    };
 
     private RecyclerView mRecyclerView;
 
@@ -65,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private MyService mMyService;
 
     ImageButton mStartBtn;
+
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -99,15 +105,13 @@ public class MainActivity extends AppCompatActivity {
     };
 
     public void requestPermission() {
-        if (ActivityCompat.checkSelfPermission(this,
-                permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this,
-                        permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                    MainActivity.this,
-                    new String[]{permission.ACCESS_FINE_LOCATION, permission.ACCESS_COARSE_LOCATION},
-                    REQUEST_LOCATION_PERMISSION);
+        for (String permission : needPermissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                        this,
+                        needPermissions,
+                        REQUEST_LOCATION_PERMISSION);
+            }
         }
     }
 
@@ -125,10 +129,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        boolean permissionToRecordAccepted = false;
+        boolean permissionToRecordAccepted = true;
+
         if (requestCode == REQUEST_LOCATION_PERMISSION) {
-            permissionToRecordAccepted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    permissionToRecordAccepted = false;
+                    break;
+                }
+            }
         }
+
         if (!permissionToRecordAccepted) {
             Toast.makeText(MainActivity.this, "권한이 거부되었습니다. 권한을 승인해주세요.", Toast.LENGTH_LONG).show();
             new Handler().postDelayed(new Runnable() {
