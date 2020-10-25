@@ -50,12 +50,14 @@ import java.util.List;
 import io.realm.Realm;
 
 
+@RequiresApi(api = Build.VERSION_CODES.Q)
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AppCompatActivity";
     private static final int REQUEST_LOCATION_PERMISSION = 200;
     private static final String[] needPermissions = {
             permission.ACCESS_COARSE_LOCATION,
             permission.ACCESS_FINE_LOCATION,
+            permission.ACCESS_BACKGROUND_LOCATION,
     };
 
     private RecyclerView mRecyclerView;
@@ -159,7 +161,6 @@ public class MainActivity extends AppCompatActivity {
 
         }
     }
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

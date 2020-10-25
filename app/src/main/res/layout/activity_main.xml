@@ -74,6 +74,14 @@
                                 android:padding="0dp"
                                 app:srcCompat="@drawable/btn_start" />
 
+                            <TextView
+                                android:hint="00:00"
+                                android:id="@+id/drivingTime"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@color/transparent"
+                                android:padding="0dp" />
+
                         </LinearLayout>
 
                         <!-- dummy content list of new -->

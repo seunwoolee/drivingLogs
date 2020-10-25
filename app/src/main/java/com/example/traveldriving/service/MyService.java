@@ -53,8 +53,9 @@ public class MyService extends Service {
     private static final String NOTIFICATION_CHANNEL_ID = "channel1_ID";
     private static final String NOTIFICATION_CHANNEL_NAME = "channel1";
     private static final String TAG = "MyService";
-    private static final long INTERVAL_TIME = 5000;
-    private static final long FASTEST_INTERVAL_TIME = 2000;
+
+    public int mSeconds = 0;
+    public int mMeters = 0;
 
     private List<MapPoint> mMapPoints = null;
     private DrivingLog mDrivingLog = null;
@@ -74,6 +75,7 @@ public class MyService extends Service {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
+
         Task<Location> task = fusedLocationProviderClient.getLastLocation();
         task.addOnSuccessListener(new OnSuccessListener<Location>() {
             @Override
@@ -88,6 +90,7 @@ public class MyService extends Service {
                     mMapPoints.add(mapPoint);
 
                     Log.d(TAG, String.valueOf(location.getLatitude()));
+                    Log.d(TAG, String.valueOf(mSeconds));
                 }
             }
         });
@@ -128,7 +131,7 @@ public class MyService extends Service {
         if (mMapPoints.size() > 0) {
             mRealm.beginTransaction();
 
-            DrivingLog newDrivingLog = mRealm.copyToRealm(mDrivingLog); // 비관리 객체를 영속화합니다
+            DrivingLog newDrivingLog = mRealm.copyToRealm(mDrivingLog);
             RealmList<MapPoint> newMapPoints = new RealmList<>();
             int length = mMapPoints.size();
 
@@ -265,17 +268,15 @@ public class MyService extends Service {
         public void run() {
             while (stop) {
                 try {
-                    Thread.sleep(3000);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                     break;
                 }
-
+                mSeconds++;
                 getLocation();
             }
         }
-
-
     }
 
 }
