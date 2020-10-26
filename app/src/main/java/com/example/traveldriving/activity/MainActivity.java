@@ -28,6 +28,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Menu;
@@ -35,6 +36,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.traveldriving.BuildConfig;
@@ -61,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private RecyclerView mRecyclerView;
-
     private Realm mRealm;
 
     private AdapterListDrivingLog mAdapter;
@@ -72,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private MyService mMyService;
 
     ImageButton mStartBtn;
+    TextView mDrivingTime;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -81,6 +83,17 @@ public class MainActivity extends AppCompatActivity {
             mMyService = binder.getService();
             if (mMyService.isDriving()) {
                 mStartBtn.setImageResource(R.drawable.btn_stop);
+
+//                int mTempSecond = mMyService.mSeconds;
+//                int hour = mTempSecond / 3600;
+//                mTempSecond -= hour * 3600;
+//                int minute = mTempSecond / 60;
+//                mTempSecond -= minute * 60;
+//                int second = mTempSecond;
+//
+//                String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
+//                mDrivingTime.setText(time);
+
             } else {
                 mStartBtn.setImageResource(R.drawable.btn_start);
             }
@@ -167,6 +180,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mStartBtn = findViewById(R.id.startBtn);
+        mDrivingTime = findViewById(R.id.drivingTime);
 
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();

@@ -17,7 +17,9 @@ import android.media.MediaPlayer;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -55,7 +57,6 @@ public class MyService extends Service {
     private static final String TAG = "MyService";
 
     public int mSeconds = 0;
-    public int mMeters = 0;
 
     private List<MapPoint> mMapPoints = null;
     private DrivingLog mDrivingLog = null;
@@ -68,6 +69,7 @@ public class MyService extends Service {
 
     private Realm mRealm;
     private final MyServiceBinder myServiceBinder = new MyServiceBinder();
+    Handler mHandler = new Handler(Looper.getMainLooper());
 
     private void getLocation() {
         Context context = getApplicationContext();
@@ -88,9 +90,25 @@ public class MyService extends Service {
 
                     MapPoint mapPoint = new MapPoint(latitude, longitude, date);
                     mMapPoints.add(mapPoint);
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+
+//                            int mTempSecond = mSeconds;
+//                            int hour = mTempSecond / 3600;
+//                            mTempSecond -= hour * 3600;
+//                            int minute = mTempSecond / 60;
+//                            mTempSecond -= minute * 60;
+//                            int second = mTempSecond;
+//
+//                            String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
+//                            mDrivingTime.setText(time);
+
+                            Log.d(TAG, String.valueOf(mSeconds));
+                        }
+                    });
 
                     Log.d(TAG, String.valueOf(location.getLatitude()));
-                    Log.d(TAG, String.valueOf(mSeconds));
                 }
             }
         });
