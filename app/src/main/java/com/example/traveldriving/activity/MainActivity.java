@@ -62,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
             permission.ACCESS_BACKGROUND_LOCATION,
     };
 
+    private BroadcastReceiver timerBroadcastReceiver;
+
     private RecyclerView mRecyclerView;
     private Realm mRealm;
 
@@ -72,8 +74,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean mIsBound = false;
     private MyService mMyService;
 
-    ImageButton mStartBtn;
-    TextView mDrivingTime;
+    private ImageButton mStartBtn;
+    private TextView mDrivingTime;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -138,7 +140,25 @@ public class MainActivity extends AppCompatActivity {
             unbindService(serviceConnection);
         }
         mRealm.close();
+        unregisterReceiver(timerBroadcastReceiver);
         super.onDestroy();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume");
+
+        if (timerBroadcastReceiver == null) {
+            timerBroadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    String time = (String) intent.getExtras().get("time");
+                    mDrivingTime.setText(time);
+                }
+            };
+        }
+        registerReceiver(timerBroadcastReceiver, new IntentFilter("timer_update"));
     }
 
     @Override
