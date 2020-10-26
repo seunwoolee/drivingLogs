@@ -85,17 +85,6 @@ public class MainActivity extends AppCompatActivity {
             mMyService = binder.getService();
             if (mMyService.isDriving()) {
                 mStartBtn.setImageResource(R.drawable.btn_stop);
-
-//                int mTempSecond = mMyService.mSeconds;
-//                int hour = mTempSecond / 3600;
-//                mTempSecond -= hour * 3600;
-//                int minute = mTempSecond / 60;
-//                mTempSecond -= minute * 60;
-//                int second = mTempSecond;
-//
-//                String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
-//                mDrivingTime.setText(time);
-
             } else {
                 mStartBtn.setImageResource(R.drawable.btn_start);
             }

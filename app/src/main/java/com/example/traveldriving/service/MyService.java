@@ -61,29 +61,23 @@ public class MyService extends Service {
     private List<MapPoint> mMapPoints = null;
     private DrivingLog mDrivingLog = null;
 
-    private Location lastKnownLocation;
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private LocationListener mLocationListener;
-    private LocationManager mLocationManager;
     private LocationUpdateThread mLocationUpdateThread;
 
     private Realm mRealm;
     private final MyServiceBinder myServiceBinder = new MyServiceBinder();
-    Handler mHandler = new Handler(Looper.getMainLooper());
 
     private void getLocation() {
-        Context context = getApplicationContext();
-        FusedLocationProviderClient fusedLocationProviderClient = new FusedLocationProviderClient(context);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
-        Task<Location> task = fusedLocationProviderClient.getLastLocation();
+        Task<Location> task = mFusedLocationProviderClient.getLastLocation();
         task.addOnSuccessListener(new OnSuccessListener<Location>() {
             @Override
             public void onSuccess(Location location) {
-                lastKnownLocation = location;
-                if (location != null) {
+                if (location != null && mSeconds % 5 == 0) {
                     double latitude = location.getLatitude();
                     double longitude = location.getLongitude();
                     Date date = new Date(location.getTime());
@@ -126,6 +120,7 @@ public class MyService extends Service {
     public void stopDriving() {
 
         if (mLocationUpdateThread != null) {
+            mSeconds = 0;
             mLocationUpdateThread.setStop(false);
             mLocationUpdateThread.interrupt();
             mLocationUpdateThread = null;
@@ -168,39 +163,8 @@ public class MyService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         Context context = getApplicationContext();
-
-        mLocationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                double latitude = location.getLatitude();
-                double longitude = location.getLongitude();
-                Date date = new Date(location.getTime());
-
-                MapPoint mapPoint = new MapPoint(latitude, longitude, date);
-                mMapPoints.add(mapPoint);
-            }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-            }
-
-            @Override
-            public void onProviderEnabled(String provider) {
-            }
-
-            @Override
-            public void onProviderDisabled(String provider) {
-                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            }
-        };
-
         mFusedLocationProviderClient = new FusedLocationProviderClient(context);
-
-
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();
     }
@@ -260,7 +224,6 @@ public class MyService extends Service {
 
 
     class LocationUpdateThread extends Thread {
-
         private boolean stop = true;
 
         public void setStop(boolean stop) {
@@ -271,14 +234,27 @@ public class MyService extends Service {
         public void run() {
             while (stop) {
                 try {
+                    getLocation();
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
-                    break;
                 }
-                mSeconds++;
-                getLocation();
 
+
+                mSeconds++;
+                int mTempSecond = mSeconds;
+                int hour = mTempSecond / 3600;
+                mTempSecond -= hour * 3600;
+                int minute = mTempSecond / 60;
+                mTempSecond -= minute * 60;
+                int second = mTempSecond;
+
+                Intent intent = new Intent("timer_update");
+                @SuppressLint("DefaultLocale")
+                String time = String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second);
+                intent.putExtra("time", time);
+
+                sendBroadcast(intent);
             }
         }
     }

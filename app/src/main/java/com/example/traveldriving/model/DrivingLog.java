@@ -97,7 +97,7 @@ public class DrivingLog extends RealmObject implements Serializable {
         }
 
         try {
-            list = geocoder.getFromLocation(latitude, longitude, 1);
+            list = geocoder.getFromLocation(latitude, longitude, 2);
         } catch (IOException e) {
             e.printStackTrace();
         }
