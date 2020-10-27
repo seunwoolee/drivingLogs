@@ -25,7 +25,7 @@ public class DrivingLog extends RealmObject implements Serializable {
     private double stopLongitude;
     private Date startDate;
     private Date stopDate;
-    private RealmList<MapPoint> mapPoints; // 일 대 다 관계를 정의합니다
+    private RealmList<MapPoint> mapPoints;
 
     public DrivingLog() {
     }

@@ -2,7 +2,6 @@ package com.example.traveldriving.service;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -12,20 +11,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
-import android.location.LocationManager;
-import android.media.MediaPlayer;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
-import android.provider.Settings;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
@@ -34,15 +24,9 @@ import com.example.traveldriving.activity.MainActivity;
 import com.example.traveldriving.model.DrivingLog;
 import com.example.traveldriving.model.MapPoint;
 import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationAvailability;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -62,36 +46,14 @@ public class MyService extends Service {
     private DrivingLog mDrivingLog = null;
 
     private FusedLocationProviderClient mFusedLocationProviderClient;
+    private LocationRequest mLocationRequest;
+    private LocationCallback mLocationCallback;
+
     private LocationListener mLocationListener;
     private LocationUpdateThread mLocationUpdateThread;
 
     private Realm mRealm;
     private final MyServiceBinder myServiceBinder = new MyServiceBinder();
-
-    private void getLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        Task<Location> task = mFusedLocationProviderClient.getLastLocation();
-        task.addOnSuccessListener(new OnSuccessListener<Location>() {
-            @Override
-            public void onSuccess(Location location) {
-                if (location != null && mSeconds % 5 == 0) {
-                    double latitude = location.getLatitude();
-                    double longitude = location.getLongitude();
-                    Date date = new Date(location.getTime());
-
-                    MapPoint mapPoint = new MapPoint(latitude, longitude, date);
-                    mMapPoints.add(mapPoint);
-
-                    Log.d(TAG, String.valueOf(location.getLatitude()));
-                    Log.d(TAG, String.valueOf(mSeconds));
-
-                }
-            }
-        });
-    }
 
     public boolean isDriving() {
         return mDrivingLog != null;
@@ -99,6 +61,7 @@ public class MyService extends Service {
 
     @SuppressLint("MissingPermission")
     public void startDriving() {
+        mFusedLocationProviderClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null);
         mDrivingLog = new DrivingLog();
         mMapPoints = new ArrayList<MapPoint>();
         mLocationUpdateThread = new LocationUpdateThread();
@@ -118,9 +81,9 @@ public class MyService extends Service {
     }
 
     public void stopDriving() {
+        mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
 
         if (mLocationUpdateThread != null) {
-            mSeconds = 0;
             mLocationUpdateThread.setStop(false);
             mLocationUpdateThread.interrupt();
             mLocationUpdateThread = null;
@@ -154,6 +117,7 @@ public class MyService extends Service {
         }
         mMapPoints = null;
         mDrivingLog = null;
+        mSeconds = 0;
         stopForeground(true);
     }
 
@@ -163,8 +127,27 @@ public class MyService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Context context = getApplicationContext();
-        mFusedLocationProviderClient = new FusedLocationProviderClient(context);
+        mLocationRequest = LocationRequest.create();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(10000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+
+                super.onLocationResult(locationResult);
+                Location location = locationResult.getLastLocation();
+                double latitude = location.getLatitude();
+                double longitude = location.getLongitude();
+                Date date = new Date(location.getTime());
+
+                MapPoint mapPoint = new MapPoint(latitude, longitude, date);
+                mMapPoints.add(mapPoint);
+                Log.d(TAG, String.valueOf(location.getLatitude()) + String.valueOf(location.getLongitude()));
+            }
+        };
+
+        mFusedLocationProviderClient = new FusedLocationProviderClient(this);
         Realm.init(this);
         mRealm = Realm.getDefaultInstance();
     }
@@ -234,7 +217,6 @@ public class MyService extends Service {
         public void run() {
             while (stop) {
                 try {
-                    getLocation();
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
